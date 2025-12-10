@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Superadmin Dashboard</title>
+  <style>
+    body { font-family: Arial; background: #f5f5f5; margin:0; }
+    .container { width: 90%; margin:auto; padding:20px; }
+    .card { background:white; padding:20px; margin:10px 0; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.1);}
+    button { padding:8px 15px; margin:5px; border:none; border-radius:5px; cursor:pointer;}
+    button.generate { background:#4caf50; color:white;}
+    button.reset { background:#f44336; color:white;}
+
+    /* Loading screen styles */
+    #loadingScreen { position:fixed;top:0;left:0;width:100%;height:100%;background:#222;color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;}
+    #progressContainer { width:80%;background:#555;height:20px;border-radius:10px;margin-top:20px;}
+    #progressBar { width:0%;height:100%;background:#4caf50;border-radius:10px;}
+  </style>
+</head>
+<body>
+
+<!-- Loading Screen -->
+<div id="loadingScreen">
+  <h2>Loading Dashboard...</h2>
+  <div id="progressContainer">
+    <div id="progressBar"></div>
+  </div>
+  <p id="loadingText">Connecting to server...</p>
+</div>
+
+<div class="container">
+  <h1>Dashboard</h1>
+  <div class="card">
+    <h2>Login</h2>
+    <input id="codeInput" type="password" placeholder="Access code">
+    <button onclick="login()">Login</button>
+  </div>
+
+  <div class="card" id="adminPanel" style="display:none">
+    <h2>Code Generator</h2>
+    <select id="roleSelect">
+      <option value="admin">Admin</option>
+      <option value="user">User</option>
+      <option value="guest">Guest</option>
+    </select>
+    <button class="generate" onclick="generateCode()">Generate Code</button>
+    <div id="newCode"></div>
+
+    <h2>User List</h2>
+    <ul id="userList"></ul>
+  </div>
+</div>
+
+<script>
+let role = "";
+
+// Generate a device ID for locking codes
+function getDeviceID() {
+  let id = localStorage.getItem("device-id");
+  if(!id) { id = crypto.randomUUID(); localStorage.setItem("device-id", id);}
+  return id;
+}
+
+// --- Loading screen simulation ---
+let progress = 0;
+const progressBar = document.getElementById("progressBar");
+const loadingText = document.getElementById("loadingText");
+
+function simulateLoading() {
+  progress += Math.random() * 10;
+  if(progress > 100) progress = 100;
+  progressBar.style.width = progress + "%";
+  
+  if(progress < 100) setTimeout(simulateLoading, 200);
+  else loadingText.innerText = "Server is almost ready...";
+}
+
+simulateLoading();
+
+// Ping server until it responds, then hide loading screen
+async function waitForServer() {
+  try {
+    const res = await fetch("/login", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({code:"Pumpkin@2012", deviceID:"test"})
+    });
+    document.getElementById("loadingScreen").style.display="none";
+  } catch(e){
+    setTimeout(waitForServer, 1000);
+  }
+}
+
+waitForServer();
+
+// --- Login / Dashboard ---
+async function login() {
+  const code = document.getElementById("codeInput").value;
+  const deviceID = getDeviceID();
+  const res = await fetch("/login", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({code, deviceID})
+  });
+  const data = await res.json();
+  if(!data.ok) return alert(data.error);
+  role = data.role;
+  if(role === "superadmin") showAdminPanel();
+  else alert("Logged in as "+role);
+}
+
+function showAdminPanel() {
+  document.getElementById("adminPanel").style.display="block";
+  loadUsers();
+}
+
+async function generateCode() {
+  const roleSelect = document.getElementById("roleSelect").value;
+  const res = await fetch("/generate", {
+    method:"POST", headers:{"Content-Type":"application/json", "x-role":role},
+    body: JSON.stringify({role: roleSelect})
+  });
+  const data = await res.json();
+  document.getElementById("newCode").innerText = "New code: "+data.code;
+  loadUsers();
+}
+
+async function loadUsers() {
+  const res = await fetch("/users", { headers:{"x-role":role}});
+  const users = await res.json();
+  const list = document.getElementById("userList");
+  list.innerHTML="";
+  for(const code in users) {
+    const user = users[code];
+    const li = document.createElement("li");
+    li.innerHTML = `${code} - ${user.role} - ${user.lockedDevice||"not locked"} <button class="reset" onclick="resetDevice('${code}')">Reset Device</button>`;
+    list.appendChild(li);
+  }
+}
+
+async function resetDevice(code) {
+  await fetch("/reset", {
+    method:"POST", headers:{"Content-Type":"application/json","x-role":role},
+    body: JSON.stringify({code})
+  });
+  loadUsers();
+}
+</script>
+</body>
+</html>
