@@ -244,13 +244,13 @@ async function loadUsers() {
     const user = users[code];
     const li = document.createElement("li");
     const codeLabel = document.createElement("span");
-    codeLabel.textContent = "Access code hidden";
+    codeLabel.textContent = "••••••";
     const revealButton = document.createElement("button");
     revealButton.type = "button";
     revealButton.textContent = "Show code";
     revealButton.addEventListener("click", () => {
-      const isHidden = codeLabel.textContent === "Access code hidden";
-      codeLabel.textContent = isHidden ? code : "Access code hidden";
+      const isHidden = codeLabel.textContent === "••••••";
+      codeLabel.textContent = isHidden ? code : "••••••";
       revealButton.textContent = isHidden ? "Hide code" : "Show code";
     });
     li.append(codeLabel, " ", revealButton, ` - ${user.role} - ${user.lockedDevice||"not locked"} `);
@@ -286,13 +286,13 @@ async function loadLogins() {
     }
     const codeCell = document.createElement("td");
     const codeLabel = document.createElement("span");
-    codeLabel.textContent = "Hidden";
+    codeLabel.textContent = "••••••";
     const revealButton = document.createElement("button");
     revealButton.type = "button";
     revealButton.textContent = "Show code";
     revealButton.addEventListener("click", () => {
-      const isHidden = codeLabel.textContent === "Hidden";
-      codeLabel.textContent = isHidden ? login.code : "Hidden";
+      const isHidden = codeLabel.textContent === "••••••";
+      codeLabel.textContent = isHidden ? login.code : "••••••";
       revealButton.textContent = isHidden ? "Hide code" : "Show code";
     });
     codeCell.append(codeLabel, " ", revealButton);
