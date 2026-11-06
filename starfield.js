@@ -2,7 +2,8 @@
   const field = document.querySelector(".starfield");
   const directionSelect = document.getElementById("starDirection");
   const speedSelect = document.getElementById("starSpeed");
-  if (!field || !directionSelect || !speedSelect) return;
+  const themeSelect = document.getElementById("themeMode");
+  if (!field || !directionSelect || !speedSelect || !themeSelect) return;
 
   const directions = {
     "down-right": [1, 1],
@@ -31,11 +32,13 @@
     field.style.setProperty("--drift-y-slow", `${yDirection * 240}px`);
     field.style.setProperty("--fast-duration", `${fastDuration}s`);
     field.style.setProperty("--slow-duration", `${slowDuration}s`);
+    document.documentElement.dataset.theme = themeSelect.value;
 
     try {
       localStorage.setItem(storageKey, JSON.stringify({
         direction: directionSelect.value,
-        speed: speedSelect.value
+        speed: speedSelect.value,
+        theme: themeSelect.value
       }));
     } catch {
       // The selected settings still apply for this page if storage is unavailable.
@@ -46,11 +49,13 @@
     const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
     if (saved && directions[saved.direction]) directionSelect.value = saved.direction;
     if (saved && speeds[saved.speed]) speedSelect.value = saved.speed;
+    if (saved && ["dark", "light"].includes(saved.theme)) themeSelect.value = saved.theme;
   } catch {
     // Keep the default diagonal direction and normal speed if saved settings are unavailable.
   }
 
   directionSelect.addEventListener("change", applySettings);
   speedSelect.addEventListener("change", applySettings);
+  themeSelect.addEventListener("change", applySettings);
   applySettings();
 })();

@@ -6,6 +6,7 @@
   <title>Games | Superstar</title>
   <style>
     :root { color-scheme: dark; }
+    :root[data-theme="light"] { color-scheme: light; }
     body { font-family: Arial, sans-serif; background: linear-gradient(160deg, #080d20, #101a35 55%, #171432); color: #f3f5ff; margin: 0; min-height:100vh; }
     .starfield { --drift-x-fast:180px; --drift-y-fast:180px; --drift-x-slow:240px; --drift-y-slow:240px; --fast-duration:16s; --slow-duration:27s; position:fixed; inset:0; overflow:hidden; pointer-events:none; z-index:0; }
     .starfield::before, .starfield::after { content:""; position:absolute; inset:-180px 0 0; background-repeat:repeat; will-change:background-position; }
@@ -28,6 +29,18 @@
     .empty-state p { color: #b7c1df; }
     button { background:#27365f; color:#f5f7ff; padding: 8px 15px; border:1px solid rgba(190,205,255,.18); border-radius: 7px; cursor: pointer; }
     button:hover { background:#384a7c; }
+    :root[data-theme="light"] body { background:linear-gradient(160deg, #f3f6ff, #e5ecfb 55%, #eee9ff); color:#202945; }
+    :root[data-theme="light"] .starfield::before { opacity:.28; }
+    :root[data-theme="light"] .starfield::after { opacity:.18; }
+    :root[data-theme="light"] header { background:rgba(255,255,255,.82); border-color:#d6def0; box-shadow:0 2px 12px rgba(48,64,100,.1); }
+    :root[data-theme="light"] .star-settings summary,
+    :root[data-theme="light"] button { background:#e1e8fa; color:#202945; border-color:#c3cee8; }
+    :root[data-theme="light"] .star-settings summary:hover,
+    :root[data-theme="light"] button:hover { background:#d1dcf5; }
+    :root[data-theme="light"] .settings-menu { background:#fff; color:#202945; border-color:#cbd5eb; }
+    :root[data-theme="light"] .settings-menu select { background:#fff; color:#202945; border-color:#b9c6e1; }
+    :root[data-theme="light"] .empty-state { background:rgba(255,255,255,.9); border-color:#d6def0; box-shadow:0 10px 30px rgba(48,64,100,.12); }
+    :root[data-theme="light"] .empty-state p { color:#53617e; }
     @media (prefers-reduced-motion: reduce) { .starfield::before, .starfield::after { animation:none; } }
   </style>
 </head>
@@ -56,6 +69,12 @@
             <option value="slow">Slow</option>
             <option value="normal">Normal</option>
             <option value="fast">Fast</option>
+          </select>
+        </label>
+        <label>Theme
+          <select id="themeMode">
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
           </select>
         </label>
       </div>
