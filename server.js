@@ -11,6 +11,7 @@ app.use(cors());
 app.use(express.json());
 app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "index.html")));
 app.get("/games", (_req, res) => res.sendFile(path.join(__dirname, "games.html")));
+app.get("/starfield.js", (_req, res) => res.sendFile(path.join(__dirname, "starfield.js")));
 
 const superadminCode = process.env.SUPERADMIN_CODE;
 const userCode = process.env.USER_CODE;

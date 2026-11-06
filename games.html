@@ -5,20 +5,61 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Games | Superstar</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #f5f5f5; color: #222; margin: 0; }
-    header { display: flex; align-items: center; gap: 16px; padding: 16px 5%; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,.1); }
+    :root { color-scheme: dark; }
+    body { font-family: Arial, sans-serif; background: linear-gradient(160deg, #080d20, #101a35 55%, #171432); color: #f3f5ff; margin: 0; min-height:100vh; }
+    .starfield { --drift-x-fast:180px; --drift-y-fast:180px; --drift-x-slow:240px; --drift-y-slow:240px; --fast-duration:16s; --slow-duration:27s; position:fixed; inset:0; overflow:hidden; pointer-events:none; z-index:0; }
+    .starfield::before, .starfield::after { content:""; position:absolute; inset:-180px 0 0; background-repeat:repeat; will-change:background-position; }
+    .starfield::before { opacity:.75; background-image:radial-gradient(1.4px 1.4px at 22px 34px, #fff 98%, transparent),radial-gradient(1px 1px at 91px 116px, #dce8ff 98%, transparent),radial-gradient(1.2px 1.2px at 148px 62px, #fff 98%, transparent); background-size:180px 180px; animation:fall-stars var(--fast-duration) linear infinite; }
+    .starfield::after { opacity:.45; background-image:radial-gradient(1px 1px at 44px 72px, #c8d6ff 98%, transparent),radial-gradient(1.5px 1.5px at 126px 148px, #fff 98%, transparent),radial-gradient(1px 1px at 204px 28px, #e8ddff 98%, transparent); background-size:240px 240px; animation:fall-stars-slow var(--slow-duration) linear infinite; }
+    @keyframes fall-stars { to { background-position:var(--drift-x-fast) var(--drift-y-fast); } }
+    @keyframes fall-stars-slow { to { background-position:var(--drift-x-slow) var(--drift-y-slow); } }
+    header, main { position:relative; z-index:1; }
+    header { display: flex; align-items: center; gap: 16px; padding: 16px 5%; background:rgba(11,17,38,.78); border-bottom:1px solid rgba(164,184,255,.16); box-shadow: 0 2px 12px rgba(0,0,0,.2); backdrop-filter:blur(8px); }
     h1 { margin: 0; font-size: 24px; }
     a { color: inherit; }
+    .star-settings { position:relative; margin-left:auto; }
+    .star-settings summary { list-style:none; cursor:pointer; background:#27365f; color:#f5f7ff; padding:9px 14px; border:1px solid rgba(190,205,255,.18); border-radius:7px; }
+    .star-settings summary::-webkit-details-marker { display:none; }
+    .settings-menu { position:absolute; right:0; top:calc(100% + 8px); width:230px; padding:14px; background:#111a34; border:1px solid rgba(164,184,255,.25); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.4); }
+    .settings-menu label { display:block; margin:0 0 10px; }
+    .settings-menu select { display:block; width:100%; margin-top:5px; background:#0b1228; color:#f3f5ff; border:1px solid #46557c; border-radius:6px; padding:9px; }
     main { width: 90%; max-width: 900px; margin: 24px auto; }
-    .empty-state { background: white; padding: 28px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,.1); }
-    .empty-state p { color: #555; }
-    button { padding: 8px 15px; border: 0; border-radius: 5px; cursor: pointer; }
+    .empty-state { background:rgba(17,26,52,.88); border:1px solid rgba(164,184,255,.18); padding: 28px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.24); }
+    .empty-state p { color: #b7c1df; }
+    button { background:#27365f; color:#f5f7ff; padding: 8px 15px; border:1px solid rgba(190,205,255,.18); border-radius: 7px; cursor: pointer; }
+    button:hover { background:#384a7c; }
+    @media (prefers-reduced-motion: reduce) { .starfield::before, .starfield::after { animation:none; } }
   </style>
 </head>
 <body>
+  <div class="starfield" aria-hidden="true"></div>
   <header>
     <a href="/" aria-label="Back to dashboard"><button type="button">Back</button></a>
     <h1>Games</h1>
+    <details class="star-settings">
+      <summary>Star settings</summary>
+      <div class="settings-menu">
+        <label>Direction
+          <select id="starDirection">
+            <option value="down-right">Down-right</option>
+            <option value="down-left">Down-left</option>
+            <option value="up-right">Up-right</option>
+            <option value="up-left">Up-left</option>
+            <option value="down">Down</option>
+            <option value="up">Up</option>
+            <option value="right">Right</option>
+            <option value="left">Left</option>
+          </select>
+        </label>
+        <label>Speed
+          <select id="starSpeed">
+            <option value="slow">Slow</option>
+            <option value="normal">Normal</option>
+            <option value="fast">Fast</option>
+          </select>
+        </label>
+      </div>
+    </details>
   </header>
   <main>
     <section class="empty-state" aria-labelledby="games-heading">
@@ -26,5 +67,6 @@
       <p>This is your games page. Add your games here whenever they’re ready.</p>
     </section>
   </main>
+  <script src="/starfield.js" defer></script>
 </body>
 </html>
