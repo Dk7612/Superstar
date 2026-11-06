@@ -25,6 +25,10 @@
 </head>
 <body>
 
+<nav class="container">
+  <a href="/games"><button type="button">Games</button></a>
+</nav>
+
 <!-- Loading Screen -->
 <div id="loadingScreen">
   <h2>Loading Dashboard...</h2>
@@ -43,12 +47,6 @@
       <button type="submit">Login</button>
     </form>
     <p class="notice">Access codes, IP addresses, device IDs, and login times are recorded.</p>
-  </div>
-
-  <div class="card" id="accessPanel" style="display:none">
-    <h2 id="accessTitle">Service access</h2>
-    <button onclick="openBrowserTab()">Open embedded viewer</button>
-    <p class="notice">Opens a direct embedded viewer, not a proxy. Sites that disallow framing will not load.</p>
   </div>
 
   <div class="card" id="adminPanel" style="display:none">
@@ -155,64 +153,7 @@ async function login() {
   if(!data.ok) return alert(data.error);
   role = data.role;
   adminToken = data.adminToken || "";
-  document.getElementById("accessTitle").textContent = `Service access (${role})`;
-  document.getElementById("accessPanel").style.display = "block";
   if(role === "superadmin") showAdminPanel();
-}
-
-function openBrowserTab() {
-  const browser = window.open("about:blank", "_blank");
-  if (!browser) {
-    alert("Allow pop-ups to open the embedded viewer.");
-    return;
-  }
-
-  browser.document.open();
-  browser.document.write(`<!doctype html>
-    <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Embedded viewer</title>
-        <style>
-          * { box-sizing: border-box; }
-          body { margin: 0; font: 14px Arial, sans-serif; color: #222; }
-          header { display: flex; gap: 8px; padding: 10px; background: #f1f1f1; }
-          input { flex: 1; min-width: 0; padding: 9px; }
-          button { padding: 8px 14px; cursor: pointer; }
-          p { margin: 8px 12px; color: #555; }
-          iframe { display: block; width: 100%; height: calc(100vh - 92px); border: 0; }
-        </style>
-      </head>
-      <body>
-        <header>
-          <input id="address" type="url" placeholder="https://example.com" aria-label="Website address">
-          <button id="go" type="button">Go</button>
-        </header>
-        <p>Direct loading only; this viewer does not proxy traffic. Some sites block embedding.</p>
-        <iframe id="page" title="Website viewer" sandbox="allow-forms allow-scripts allow-same-origin allow-downloads"></iframe>
-      </body>
-    </html>`);
-  browser.document.close();
-
-  const address = browser.document.getElementById("address");
-  const frame = browser.document.getElementById("page");
-  const navigate = () => {
-    try {
-      const url = new URL(address.value);
-      if (url.protocol !== "http:" && url.protocol !== "https:") {
-        throw new Error("Unsupported protocol");
-      }
-      frame.src = url.href;
-    } catch {
-      browser.alert("Enter a valid website address beginning with http:// or https://.");
-    }
-  };
-  browser.document.getElementById("go").addEventListener("click", navigate);
-  address.addEventListener("keydown", event => {
-    if (event.key === "Enter") navigate();
-  });
-  browser.opener = null;
 }
 
 function showAdminPanel() {

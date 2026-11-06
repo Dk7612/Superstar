@@ -10,6 +10,7 @@ app.set("trust proxy", 1);
 app.use(cors());
 app.use(express.json());
 app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "index.html")));
+app.get("/games", (_req, res) => res.sendFile(path.join(__dirname, "games.html")));
 
 const superadminCode = process.env.SUPERADMIN_CODE;
 const userCode = process.env.USER_CODE;
