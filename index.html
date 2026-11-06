@@ -6,19 +6,16 @@
     :root { color-scheme: dark; }
     :root[data-theme="light"] { color-scheme: light; }
     body { font-family: Arial, sans-serif; background: linear-gradient(160deg, #080d20, #101a35 55%, #171432); color:#f3f5ff; margin:0; min-height:100vh; }
-    .starfield { --drift-x-fast:180px; --drift-y-fast:180px; --drift-x-slow:240px; --drift-y-slow:240px; --fast-duration:16s; --slow-duration:27s; position:fixed; inset:0; overflow:hidden; pointer-events:none; z-index:0; }
-    .starfield::before, .starfield::after { content:""; position:absolute; inset:-180px 0 0; background-repeat:repeat; will-change:background-position; }
-    .starfield::before { opacity:.75; background-image:radial-gradient(1.4px 1.4px at 22px 34px, #fff 98%, transparent),radial-gradient(1px 1px at 91px 116px, #dce8ff 98%, transparent),radial-gradient(1.2px 1.2px at 148px 62px, #fff 98%, transparent); background-size:180px 180px; animation:fall-stars var(--fast-duration) linear infinite; }
-    .starfield::after { opacity:.45; background-image:radial-gradient(1px 1px at 44px 72px, #c8d6ff 98%, transparent),radial-gradient(1.5px 1.5px at 126px 148px, #fff 98%, transparent),radial-gradient(1px 1px at 204px 28px, #e8ddff 98%, transparent); background-size:240px 240px; animation:fall-stars-slow var(--slow-duration) linear infinite; }
-    @keyframes fall-stars { to { background-position:var(--drift-x-fast) var(--drift-y-fast); } }
-    @keyframes fall-stars-slow { to { background-position:var(--drift-x-slow) var(--drift-y-slow); } }
+    .starfield { position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:0; }
     .container, nav { position:relative; z-index:1; }
+    nav.top-nav { z-index:10; }
     .container { width: 90%; margin:auto; padding:20px; }
     .top-nav { display:flex; align-items:center; justify-content:space-between; }
     .star-settings { position:relative; }
+    .star-settings[open] { z-index:20; }
     .star-settings summary { list-style:none; cursor:pointer; background:#27365f; color:#f5f7ff; padding:9px 14px; border:1px solid rgba(190,205,255,.18); border-radius:7px; }
     .star-settings summary::-webkit-details-marker { display:none; }
-    .settings-menu { position:absolute; right:0; top:calc(100% + 8px); width:230px; padding:14px; background:#111a34; border:1px solid rgba(164,184,255,.25); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.4); }
+    .settings-menu { position:absolute; z-index:21; right:0; top:calc(100% + 8px); width:230px; padding:14px; background:#111a34; border:1px solid rgba(164,184,255,.25); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.4); }
     .settings-menu label { display:block; margin:0 0 10px; }
     .settings-menu select { display:block; width:100%; margin-top:5px; }
     .card { background:rgba(17, 26, 52, .88); border:1px solid rgba(164,184,255,.18); padding:20px; margin:10px 0; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.24); backdrop-filter:blur(8px); }
@@ -35,8 +32,7 @@
     dialog::backdrop { background:rgba(0,0,0,.55); }
     .dialog-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:20px; }
     :root[data-theme="light"] body { background:linear-gradient(160deg, #f3f6ff, #e5ecfb 55%, #eee9ff); color:#202945; }
-    :root[data-theme="light"] .starfield::before { opacity:.28; }
-    :root[data-theme="light"] .starfield::after { opacity:.18; }
+    :root[data-theme="light"] .starfield { opacity:.55; }
     :root[data-theme="light"] .star-settings summary,
     :root[data-theme="light"] button { background:#e1e8fa; color:#202945; border-color:#c3cee8; }
     :root[data-theme="light"] .star-settings summary:hover,
@@ -60,12 +56,12 @@
     #loadingScreen { position:fixed;top:0;left:0;width:100%;height:100%;background:#080d20;color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;}
     #progressContainer { width:80%;background:#27365f;height:20px;border-radius:10px;margin-top:20px;}
     #progressBar { width:0%;height:100%;background:#8ea7ff;border-radius:10px;}
-    @media (prefers-reduced-motion: reduce) { .starfield::before, .starfield::after { animation:none; } }
+    @media (prefers-reduced-motion: reduce) { .starfield { opacity:.65; } }
   </style>
 </head>
 <body>
 
-<div class="starfield" aria-hidden="true"></div>
+<canvas class="starfield" aria-hidden="true"></canvas>
 <nav class="container top-nav">
   <a href="/games"><button type="button">Games</button></a>
   <details class="star-settings">
@@ -80,7 +76,7 @@
           <option value="down">Down</option>
           <option value="up">Up</option>
           <option value="right">Right</option>
-          <option value="left">Left</option>
+          <option value="left" selected>Left (right to left)</option>
         </select>
       </label>
       <label>Speed
