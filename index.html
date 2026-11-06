@@ -82,7 +82,7 @@ async function waitForServer() {
     const res = await fetch("/login", {
       method:"POST",
       headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({code:"Pumpkin@2012", deviceID:"test"})
+      body: JSON.stringify({code:"0000", deviceID:"test"})
     });
     document.getElementById("loadingScreen").style.display="none";
   } catch(e){

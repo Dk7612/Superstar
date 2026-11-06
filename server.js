@@ -8,7 +8,7 @@ app.use(bodyParser.json());
 app.use(express.static("."));
 
 let users = {
-  "Pumpkin@2012": { role: "superadmin", lockedDevice: null }
+  "0000": { role: "superadmin", lockedDevice: null }
 };
 
 app.post("/login", (req, res) => {
