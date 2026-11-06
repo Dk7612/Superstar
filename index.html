@@ -9,6 +9,10 @@
     button { padding:8px 15px; margin:5px; border:none; border-radius:5px; cursor:pointer;}
     button.generate { background:#4caf50; color:white;}
     button.reset { background:#f44336; color:white;}
+    .table-wrap { overflow-x:auto; }
+    table { border-collapse:collapse; width:100%; min-width:700px; }
+    th, td { padding:8px; border-bottom:1px solid #ddd; text-align:left; }
+    .notice { color:#555; }
 
     /* Loading screen styles */
     #loadingScreen { position:fixed;top:0;left:0;width:100%;height:100%;background:#222;color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;}
@@ -33,6 +37,13 @@
     <h2>Login</h2>
     <input id="codeInput" type="password" placeholder="Access code">
     <button onclick="login()">Login</button>
+    <p class="notice">Access codes, IP addresses, device IDs, and login times are recorded.</p>
+  </div>
+
+  <div class="card" id="accessPanel" style="display:none">
+    <h2 id="accessTitle">Service access</h2>
+    <button onclick="openBrowserTab()">Open embedded viewer</button>
+    <p class="notice">Opens a direct embedded viewer, not a proxy. Sites that disallow framing will not load.</p>
   </div>
 
   <div class="card" id="adminPanel" style="display:none">
@@ -48,10 +59,34 @@
     <h2>User List</h2>
     <ul id="userList"></ul>
   </div>
+
+  <div class="card" id="loginPanel" style="display:none">
+    <h2>Login history (latest 500)</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Time</th><th>Code</th><th>Role</th><th>IP address</th><th>Device ID</th><th>Actions</th></tr></thead>
+        <tbody id="loginList"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" id="bansPanel" style="display:none">
+    <h2>Banned IP addresses</h2>
+    <ul id="bannedIps"></ul>
+    <h2>Banned devices</h2>
+    <ul id="bannedDevices"></ul>
+  </div>
 </div>
 
 <script>
 let role = "";
+let adminToken = "";
+
+function adminHeaders(json = false) {
+  const headers = { "Authorization": `Bearer ${adminToken}` };
+  if (json) headers["Content-Type"] = "application/json";
+  return headers;
+}
 
 // Generate a device ID for locking codes
 function getDeviceID() {
@@ -76,14 +111,10 @@ function simulateLoading() {
 
 simulateLoading();
 
-// Ping server until it responds, then hide loading screen
+// Ping the health endpoint until the server responds.
 async function waitForServer() {
   try {
-    const res = await fetch("/login", {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({code:"0000", deviceID:"test"})
-    });
+    await fetch("/health");
     document.getElementById("loadingScreen").style.display="none";
   } catch(e){
     setTimeout(waitForServer, 1000);
@@ -103,45 +134,177 @@ async function login() {
   const data = await res.json();
   if(!data.ok) return alert(data.error);
   role = data.role;
+  adminToken = data.adminToken || "";
+  document.getElementById("accessTitle").textContent = `Service access (${role})`;
+  document.getElementById("accessPanel").style.display = "block";
   if(role === "superadmin") showAdminPanel();
-  else alert("Logged in as "+role);
+}
+
+function openBrowserTab() {
+  const browser = window.open("about:blank", "_blank");
+  if (!browser) {
+    alert("Allow pop-ups to open the embedded viewer.");
+    return;
+  }
+
+  browser.document.open();
+  browser.document.write(`<!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Embedded viewer</title>
+        <style>
+          * { box-sizing: border-box; }
+          body { margin: 0; font: 14px Arial, sans-serif; color: #222; }
+          header { display: flex; gap: 8px; padding: 10px; background: #f1f1f1; }
+          input { flex: 1; min-width: 0; padding: 9px; }
+          button { padding: 8px 14px; cursor: pointer; }
+          p { margin: 8px 12px; color: #555; }
+          iframe { display: block; width: 100%; height: calc(100vh - 92px); border: 0; }
+        </style>
+      </head>
+      <body>
+        <header>
+          <input id="address" type="url" placeholder="https://example.com" aria-label="Website address">
+          <button id="go" type="button">Go</button>
+        </header>
+        <p>Direct loading only; this viewer does not proxy traffic. Some sites block embedding.</p>
+        <iframe id="page" title="Website viewer" sandbox="allow-forms allow-scripts allow-same-origin allow-downloads"></iframe>
+      </body>
+    </html>`);
+  browser.document.close();
+
+  const address = browser.document.getElementById("address");
+  const frame = browser.document.getElementById("page");
+  const navigate = () => {
+    try {
+      const url = new URL(address.value);
+      if (url.protocol !== "http:" && url.protocol !== "https:") {
+        throw new Error("Unsupported protocol");
+      }
+      frame.src = url.href;
+    } catch {
+      browser.alert("Enter a valid website address beginning with http:// or https://.");
+    }
+  };
+  browser.document.getElementById("go").addEventListener("click", navigate);
+  address.addEventListener("keydown", event => {
+    if (event.key === "Enter") navigate();
+  });
+  browser.opener = null;
 }
 
 function showAdminPanel() {
   document.getElementById("adminPanel").style.display="block";
-  loadUsers();
+  document.getElementById("loginPanel").style.display="block";
+  document.getElementById("bansPanel").style.display="block";
+  Promise.all([loadUsers(), loadLogins(), loadBans()]);
 }
 
 async function generateCode() {
   const roleSelect = document.getElementById("roleSelect").value;
   const res = await fetch("/generate", {
-    method:"POST", headers:{"Content-Type":"application/json", "x-role":role},
+    method:"POST", headers:adminHeaders(true),
     body: JSON.stringify({role: roleSelect})
   });
+  if (!res.ok) return alert((await res.json()).error);
   const data = await res.json();
   document.getElementById("newCode").innerText = "New code: "+data.code;
   loadUsers();
 }
 
 async function loadUsers() {
-  const res = await fetch("/users", { headers:{"x-role":role}});
+  const res = await fetch("/admin/users", { headers:adminHeaders()});
+  if (!res.ok) return alert("Could not load users.");
   const users = await res.json();
   const list = document.getElementById("userList");
   list.innerHTML="";
   for(const code in users) {
     const user = users[code];
     const li = document.createElement("li");
-    li.innerHTML = `${code} - ${user.role} - ${user.lockedDevice||"not locked"} <button class="reset" onclick="resetDevice('${code}')">Reset Device</button>`;
+    li.append(`${code} - ${user.role} - ${user.lockedDevice||"not locked"} `);
+    const button = document.createElement("button");
+    button.className = "reset";
+    button.textContent = "Reset Device";
+    button.addEventListener("click", () => resetDevice(code));
+    li.appendChild(button);
     list.appendChild(li);
   }
 }
 
 async function resetDevice(code) {
-  await fetch("/reset", {
-    method:"POST", headers:{"Content-Type":"application/json","x-role":role},
+  await fetch("/admin/reset", {
+    method:"POST", headers:adminHeaders(true),
     body: JSON.stringify({code})
   });
   loadUsers();
+}
+
+async function loadLogins() {
+  const res = await fetch("/admin/logins", { headers:adminHeaders()});
+  if (!res.ok) return alert("Could not load login history.");
+  const logins = await res.json();
+  const list = document.getElementById("loginList");
+  list.replaceChildren();
+  for (const login of logins) {
+    const row = document.createElement("tr");
+    for (const value of [new Date(login.time).toLocaleString(), login.code, login.role, login.ip, login.deviceID]) {
+      const cell = document.createElement("td");
+      cell.textContent = value;
+      row.appendChild(cell);
+    }
+    const actions = document.createElement("td");
+    const ipButton = document.createElement("button");
+    ipButton.className = "reset";
+    ipButton.textContent = "Ban IP";
+    ipButton.addEventListener("click", () => ban("ip", login.ip));
+    const deviceButton = document.createElement("button");
+    deviceButton.className = "reset";
+    deviceButton.textContent = "Ban device";
+    deviceButton.addEventListener("click", () => ban("device", login.deviceID));
+    actions.append(ipButton, deviceButton);
+    row.appendChild(actions);
+    list.appendChild(row);
+  }
+}
+
+async function ban(type, value) {
+  if (!confirm(`Ban this ${type} from using the service?`)) return;
+  const res = await fetch("/admin/bans", {
+    method:"POST", headers:adminHeaders(true), body:JSON.stringify({type, value})
+  });
+  if (!res.ok) return alert((await res.json()).error || "Could not apply ban.");
+  loadBans();
+}
+
+async function unban(type, value) {
+  const res = await fetch("/admin/bans", {
+    method:"DELETE", headers:adminHeaders(true), body:JSON.stringify({type, value})
+  });
+  if (!res.ok) return alert((await res.json()).error || "Could not remove ban.");
+  loadBans();
+}
+
+async function loadBans() {
+  const res = await fetch("/admin/bans", { headers:adminHeaders()});
+  if (!res.ok) return alert("Could not load bans.");
+  const bans = await res.json();
+  renderBans("bannedIps", "ip", bans.ips);
+  renderBans("bannedDevices", "device", bans.devices);
+}
+
+function renderBans(elementId, type, values) {
+  const list = document.getElementById(elementId);
+  list.replaceChildren();
+  for (const value of values) {
+    const item = document.createElement("li");
+    const remove = document.createElement("button");
+    remove.textContent = "Unban";
+    remove.addEventListener("click", () => unban(type, value));
+    item.append(`${value} `, remove);
+    list.appendChild(item);
+  }
 }
 </script>
 </body>
