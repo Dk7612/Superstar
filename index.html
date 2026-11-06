@@ -13,6 +13,9 @@
     table { border-collapse:collapse; width:100%; min-width:700px; }
     th, td { padding:8px; border-bottom:1px solid #ddd; text-align:left; }
     .notice { color:#555; }
+    dialog { border:0; border-radius:8px; max-width: min(420px, 90vw); box-shadow:0 4px 18px rgba(0,0,0,.3); }
+    dialog::backdrop { background:rgba(0,0,0,.55); }
+    .dialog-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:20px; }
 
     /* Loading screen styles */
     #loadingScreen { position:fixed;top:0;left:0;width:100%;height:100%;background:#222;color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;}
@@ -80,9 +83,19 @@
   </div>
 </div>
 
+<dialog id="banDialog" aria-labelledby="banDialogTitle">
+  <h2 id="banDialogTitle">Confirm ban</h2>
+  <p id="banDialogMessage"></p>
+  <div class="dialog-actions">
+    <button id="cancelBan" type="button">Cancel</button>
+    <button id="confirmBan" class="reset" type="button">Ban</button>
+  </div>
+</dialog>
+
 <script>
 let role = "";
 let adminToken = "";
+let pendingBan = null;
 
 function adminHeaders(json = false) {
   const headers = { "Authorization": `Bearer ${adminToken}` };
@@ -230,7 +243,17 @@ async function loadUsers() {
   for(const code in users) {
     const user = users[code];
     const li = document.createElement("li");
-    li.append(`${code} - ${user.role} - ${user.lockedDevice||"not locked"} `);
+    const codeLabel = document.createElement("span");
+    codeLabel.textContent = "Access code hidden";
+    const revealButton = document.createElement("button");
+    revealButton.type = "button";
+    revealButton.textContent = "Show code";
+    revealButton.addEventListener("click", () => {
+      const isHidden = codeLabel.textContent === "Access code hidden";
+      codeLabel.textContent = isHidden ? code : "Access code hidden";
+      revealButton.textContent = isHidden ? "Hide code" : "Show code";
+    });
+    li.append(codeLabel, " ", revealButton, ` - ${user.role} - ${user.lockedDevice||"not locked"} `);
     const button = document.createElement("button");
     button.className = "reset";
     button.textContent = "Reset Device";
@@ -256,7 +279,25 @@ async function loadLogins() {
   list.replaceChildren();
   for (const login of logins) {
     const row = document.createElement("tr");
-    for (const value of [new Date(login.time).toLocaleString(), login.code, login.role, login.ip, login.deviceID]) {
+    for (const value of [new Date(login.time).toLocaleString()]) {
+      const cell = document.createElement("td");
+      cell.textContent = value;
+      row.appendChild(cell);
+    }
+    const codeCell = document.createElement("td");
+    const codeLabel = document.createElement("span");
+    codeLabel.textContent = "Hidden";
+    const revealButton = document.createElement("button");
+    revealButton.type = "button";
+    revealButton.textContent = "Show code";
+    revealButton.addEventListener("click", () => {
+      const isHidden = codeLabel.textContent === "Hidden";
+      codeLabel.textContent = isHidden ? login.code : "Hidden";
+      revealButton.textContent = isHidden ? "Hide code" : "Show code";
+    });
+    codeCell.append(codeLabel, " ", revealButton);
+    row.appendChild(codeCell);
+    for (const value of [login.role, login.ip, login.deviceID]) {
       const cell = document.createElement("td");
       cell.textContent = value;
       row.appendChild(cell);
@@ -265,25 +306,40 @@ async function loadLogins() {
     const ipButton = document.createElement("button");
     ipButton.className = "reset";
     ipButton.textContent = "Ban IP";
-    ipButton.addEventListener("click", () => ban("ip", login.ip));
+    ipButton.addEventListener("click", () => requestBan("ip", login.ip));
     const deviceButton = document.createElement("button");
     deviceButton.className = "reset";
     deviceButton.textContent = "Ban device";
-    deviceButton.addEventListener("click", () => ban("device", login.deviceID));
+    deviceButton.addEventListener("click", () => requestBan("device", login.deviceID));
     actions.append(ipButton, deviceButton);
     row.appendChild(actions);
     list.appendChild(row);
   }
 }
 
-async function ban(type, value) {
-  if (!confirm(`Ban this ${type} from using the service?`)) return;
+function requestBan(type, value) {
+  pendingBan = { type, value };
+  document.getElementById("banDialogMessage").textContent =
+    `Are you sure you want to ban this ${type === "ip" ? "IP address" : "device"}? ${value}`;
+  document.getElementById("banDialog").showModal();
+}
+
+document.getElementById("cancelBan").addEventListener("click", () => {
+  pendingBan = null;
+  document.getElementById("banDialog").close();
+});
+
+document.getElementById("confirmBan").addEventListener("click", async () => {
+  if (!pendingBan) return;
+  const banRequest = pendingBan;
+  pendingBan = null;
+  document.getElementById("banDialog").close();
   const res = await fetch("/admin/bans", {
-    method:"POST", headers:adminHeaders(true), body:JSON.stringify({type, value})
+    method:"POST", headers:adminHeaders(true), body:JSON.stringify(banRequest)
   });
   if (!res.ok) return alert((await res.json()).error || "Could not apply ban.");
   loadBans();
-}
+});
 
 async function unban(type, value) {
   const res = await fetch("/admin/bans", {
