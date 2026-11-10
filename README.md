@@ -14,7 +14,7 @@ NOTE 3.0: if you ask me to make changes to the proxy or something and i say yes 
 
 ## Persistent service state
 
-The service stores login history, generated login codes, account names, device locks, device/IP bans, and per-login-code game progress in `data/service-data.json`. Set the `DATA_DIR` environment variable to a persistent disk path to keep this state across restarts and redeploys. On Render, attach a persistent disk to the web service and set `DATA_DIR` to its mount path (for example, `/var/data`). Without a persistent disk, Render may erase data stored on the service filesystem when it restarts or is redeployed. The admin login code is configured through `ADMIN_CODE` (or the legacy `SUPERADMIN_CODE` variable). A previously configured `USER_CODE` is ignored, so that login is disabled.
+The service stores login history, generated login codes, account names, device locks, device/IP bans, trusted admin devices, and per-login-code game progress in `data/service-data.json`. Set the `DATA_DIR` environment variable to a persistent disk path to keep this state across restarts and redeploys. On Render, attach a persistent disk to the web service and set `DATA_DIR` to its mount path (for example, `/var/data`). Without a persistent disk, Render may erase data stored on the service filesystem when it restarts or is redeployed. The admin login code is configured through `ADMIN_CODE` (or the legacy `SUPERADMIN_CODE` variable). A previously configured `USER_CODE` is ignored, so that login is disabled.
 
 ## Login code configuration
 
@@ -25,3 +25,7 @@ Set `ADMIN_CODE` in the hosting service before starting the app. Existing deploy
 The Drop and Skyfall 3D progress is synchronized to the login code after sign-in. Existing browser progress is merged into the account save the first time each game loads, preserving the highest unlocked level and best time for each level. Account saves use the same persistent disk as other service state.
 
 Admins can assign or change a display name for any login code in the user list. Players can reset each game's account progress separately with that game's Reset progress button.
+
+## Trusted admin devices
+
+After signing in with the admin code, select **Remember this device for 30 days** to enable password-free admin restoration in that browser. The choice is remembered by the browser, and each subsequent admin sign-in or trusted-session restore renews the 30-day expiry. The browser receives a random, HttpOnly cookie; only its hash, expiry, admin code, and associated device ID are stored by the server. Device IDs alone never grant access. Trusted-device records persist across restarts only when `DATA_DIR` points to persistent storage.

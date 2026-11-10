@@ -64,6 +64,8 @@
     body.logged-out #loginCard { width:min(320px,100%); margin:0; padding:0; background:transparent; color:#111; border:0; border-radius:0; box-shadow:none; backdrop-filter:none; }
     body.logged-out #loginCard h2 { margin:0 0 16px; font-size:20px; font-weight:500; }
     body.logged-out #loginForm input { display:block; width:100%; margin:0 0 10px; background:#fff; color:#111; border:1px solid #c9c9c9; border-radius:4px; }
+    body.logged-out #loginForm .remember-device { display:flex; align-items:center; gap:8px; margin:0 0 12px; color:#333; font-size:13px; }
+    body.logged-out #loginForm .remember-device input { display:inline-block; width:auto; margin:0; }
     body.logged-out #loginForm button { margin:0; padding:8px 14px; background:#f3f3f3; color:#111; border:1px solid #bdbdbd; border-radius:4px; }
     body.logged-out #loginForm button:hover { background:#e9e9e9; }
     body.logged-out .notice { color:#666; font-size:12px; line-height:1.5; }
@@ -117,6 +119,7 @@
     <h2>Login</h2>
     <form id="loginForm">
       <input id="codeInput" type="password" placeholder="Access code" autocomplete="current-password" required>
+      <label class="remember-device"><input id="rememberDevice" type="checkbox"> Remember this device for 30 days (admin only)</label>
       <button type="submit">Login</button>
     </form>
     <p class="notice">Access codes, IP addresses, device IDs, and login times are recorded.</p>
@@ -188,7 +191,14 @@ document.getElementById("loginForm").addEventListener("submit", event => {
   login();
 });
 
-function showAuthenticatedDashboard(session) {
+try {
+  document.getElementById("rememberDevice").checked =
+    localStorage.getItem("superstar-remember-admin-device") === "1";
+} catch {
+  // Remember-device preference is optional when browser storage is unavailable.
+}
+
+function showAuthenticatedDashboard(session, remembered = false) {
   role = session.role;
   adminToken = session.adminToken || "";
   document.getElementById("siteIcon").href = "/favicon.png?v=2";
@@ -196,34 +206,72 @@ function showAuthenticatedDashboard(session) {
   document.body.classList.add("authenticated");
   document.getElementById("loginCard").style.display = "none";
   document.getElementById("welcomePanel").style.display = "block";
-  document.getElementById("welcomeMessage").textContent = `Signed in as ${role}. Enjoy the stars.`;
+  document.getElementById("welcomeMessage").textContent = remembered
+    ? "Signed in as admin on this remembered device. Enjoy the stars."
+    : `Signed in as ${role}. Enjoy the stars.`;
   if (role === "admin") showAdminPanel();
 }
 
 function restoreSession() {
   try {
-    if (sessionStorage.getItem("superstar-authenticated") !== "1") return;
+    if (sessionStorage.getItem("superstar-authenticated") !== "1") return false;
     const session = JSON.parse(sessionStorage.getItem("superstar-session"));
     if (!session || !["admin", "guest"].includes(session.role) ||
         typeof session.sessionToken !== "string" ||
-        (session.role === "admin" && typeof session.adminToken !== "string")) return;
+        (session.role === "admin" && typeof session.adminToken !== "string")) return false;
     showAuthenticatedDashboard(session);
+    return true;
   } catch {
     // Keep the login page available when session storage is disabled or invalid.
+    return false;
   }
 }
 
-restoreSession();
+async function restoreTrustedAdminSession() {
+  try {
+    const res = await fetch("/session/restore", {
+      headers: { "X-Device-ID": getDeviceID() },
+      credentials: "same-origin"
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.ok || data.role !== "admin" ||
+        typeof data.sessionToken !== "string" ||
+        typeof data.adminToken !== "string") return;
+    const session = { role: data.role, sessionToken: data.sessionToken, adminToken: data.adminToken };
+    try {
+      sessionStorage.setItem("superstar-session", JSON.stringify(session));
+      sessionStorage.setItem("superstar-authenticated", "1");
+    } catch {
+      // The current page can still use the in-memory session.
+    }
+    showAuthenticatedDashboard(session, true);
+  } catch (error) {
+    console.error("Could not restore trusted admin session:", error);
+  }
+}
+
+if (!restoreSession()) restoreTrustedAdminSession();
 
 async function login() {
   const code = document.getElementById("codeInput").value;
   const deviceID = getDeviceID();
+  const rememberDevice = document.getElementById("rememberDevice").checked;
   const res = await fetch("/login", {
     method:"POST", headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({code, deviceID})
+    body: JSON.stringify({code, deviceID, rememberDevice})
   });
   const data = await res.json();
   if(!data.ok) return alert(data.error);
+  try {
+    if (data.role === "admin" && rememberDevice) {
+      localStorage.setItem("superstar-remember-admin-device", "1");
+    } else {
+      localStorage.removeItem("superstar-remember-admin-device");
+    }
+  } catch {
+    // The current sign-in still works if browser storage is unavailable.
+  }
   const session = { role: data.role, sessionToken: data.sessionToken, adminToken: data.adminToken || "" };
   try {
     sessionStorage.setItem("superstar-session", JSON.stringify(session));
@@ -231,7 +279,7 @@ async function login() {
   } catch {
     // Keep the current page usable if session storage is unavailable.
   }
-  showAuthenticatedDashboard(session);
+  showAuthenticatedDashboard(session, data.remembered === true);
 }
 
 function showAdminPanel() {

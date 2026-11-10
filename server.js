@@ -27,6 +27,9 @@ users[adminCode] = { role: "admin", lockedDevice: null };
 const adminTokens = new Set();
 const sessionTokens = new Map();
 const MAX_LOGIN_HISTORY = 500;
+const MAX_TRUSTED_ADMIN_DEVICES = 20;
+const TRUSTED_ADMIN_COOKIE = "superstar_admin_trust";
+const TRUSTED_ADMIN_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
 const dataDirectory = process.env.DATA_DIR || path.join(__dirname, "data");
 const dataFile = path.join(dataDirectory, "service-data.json");
 
@@ -61,6 +64,7 @@ function loadPersistentState() {
         !Array.isArray(saved.bannedIps) ||
         (saved.generatedUsers !== undefined && !Array.isArray(saved.generatedUsers)) ||
         (saved.lockedDevices !== undefined && !Array.isArray(saved.lockedDevices)) ||
+        (saved.trustedAdminDevices !== undefined && !Array.isArray(saved.trustedAdminDevices)) ||
         (saved.gameSaves !== undefined && (!saved.gameSaves || typeof saved.gameSaves !== "object" || Array.isArray(saved.gameSaves))) ||
         (saved.accountNames !== undefined && (!saved.accountNames || typeof saved.accountNames !== "object" || Array.isArray(saved.accountNames)))) {
       throw new Error("Stored service data has an invalid format");
@@ -110,6 +114,18 @@ function loadPersistentState() {
       }
       accountNames[code] = name;
     }
+    const trustedAdminDevices = [];
+    for (const trustedDevice of saved.trustedAdminDevices || []) {
+      if (!trustedDevice || typeof trustedDevice.tokenHash !== "string" || !/^[a-f0-9]{64}$/.test(trustedDevice.tokenHash) ||
+          typeof trustedDevice.deviceID !== "string" || !trustedDevice.deviceID || trustedDevice.deviceID.length > 200 ||
+          typeof trustedDevice.code !== "string" || !trustedDevice.code ||
+          !Number.isInteger(trustedDevice.expiresAt) || trustedDevice.expiresAt <= 0) {
+        throw new Error("Stored trusted admin devices have an invalid format");
+      }
+      if (trustedDevice.code === adminCode && trustedDevice.expiresAt > Date.now()) {
+        trustedAdminDevices.push(trustedDevice);
+      }
+    }
     return {
       loginHistory: saved.loginHistory.slice(-MAX_LOGIN_HISTORY).map(login => {
         if (login?.code === adminCode) return { ...login, role: "admin" };
@@ -124,11 +140,12 @@ function loadPersistentState() {
       generatedUserOrder,
       lockedDevices,
       gameSaves,
-      accountNames
+      accountNames,
+      trustedAdminDevices
     };
   } catch (error) {
     if (error.code === "ENOENT") {
-      return { loginHistory: [], bannedDevices: new Set(), bannedIps: new Set(), generatedUsers: Object.create(null), generatedUserOrder: [], lockedDevices: [], gameSaves: Object.create(null), accountNames: Object.create(null) };
+      return { loginHistory: [], bannedDevices: new Set(), bannedIps: new Set(), generatedUsers: Object.create(null), generatedUserOrder: [], lockedDevices: [], gameSaves: Object.create(null), accountNames: Object.create(null), trustedAdminDevices: [] };
     }
     throw error;
   }
@@ -148,6 +165,7 @@ const bannedDevices = persistentState.bannedDevices;
 const bannedIps = persistentState.bannedIps;
 const gameSaves = persistentState.gameSaves;
 const accountNames = persistentState.accountNames;
+const trustedAdminDevices = persistentState.trustedAdminDevices;
 
 function savePersistentState() {
   const temporaryFile = `${dataFile}.tmp`;
@@ -162,7 +180,8 @@ function savePersistentState() {
       .filter(([, user]) => user.lockedDevice)
       .map(([code, user]) => ({ code, deviceID: user.lockedDevice })),
     gameSaves,
-    accountNames
+    accountNames,
+    trustedAdminDevices
   }, null, 2), { encoding: "utf8", mode: 0o600 });
   fs.renameSync(temporaryFile, dataFile);
 }
@@ -187,8 +206,107 @@ function requireSession(req, res, next) {
   next();
 }
 
+function trustedAdminCookieOptions(req) {
+  return {
+    httpOnly: true,
+    secure: req.secure,
+    sameSite: "lax",
+    path: "/"
+  };
+}
+
+function readCookie(req, name) {
+  const prefix = `${name}=`;
+  const value = (req.get("cookie") || "").split(";").map(part => part.trim()).find(part => part.startsWith(prefix));
+  return value ? value.slice(prefix.length) : "";
+}
+
+function hashTrustedToken(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function issueSessionTokens(code) {
+  const sessionToken = crypto.randomBytes(32).toString("hex");
+  sessionTokens.set(sessionToken, code);
+  const response = { role: users[code].role, sessionToken };
+  if (users[code].role === "admin") {
+    adminTokens.add(sessionToken);
+    response.adminToken = sessionToken;
+  }
+  return response;
+}
+
+function revokeTrustedAdminCookie(req, res) {
+  const token = readCookie(req, TRUSTED_ADMIN_COOKIE);
+  if (token) {
+    const tokenHash = hashTrustedToken(token);
+    const index = trustedAdminDevices.findIndex(device => device.tokenHash === tokenHash);
+    if (index !== -1) {
+      const [removed] = trustedAdminDevices.splice(index, 1);
+      try {
+        savePersistentState();
+      } catch (error) {
+        trustedAdminDevices.splice(index, 0, removed);
+        console.error("Could not revoke trusted admin device:", error);
+        return false;
+      }
+    }
+  }
+  res.clearCookie(TRUSTED_ADMIN_COOKIE, trustedAdminCookieOptions(req));
+  return true;
+}
+
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
+});
+
+app.get("/session/restore", (req, res) => {
+  const token = readCookie(req, TRUSTED_ADMIN_COOKIE);
+  const deviceID = req.get("x-device-id") || "";
+  const tokenHash = token ? hashTrustedToken(token) : "";
+  const tokenRecord = trustedAdminDevices.find(device => device.tokenHash === tokenHash);
+  if (tokenRecord &&
+      tokenRecord.code === adminCode &&
+      tokenRecord.expiresAt > Date.now() &&
+      tokenRecord.deviceID !== deviceID) {
+    res.set("Cache-Control", "no-store");
+    return res.status(401).json({ ok: false });
+  }
+  const trustedDevice = trustedAdminDevices.find(device =>
+    device.tokenHash === tokenHash &&
+    device.code === adminCode &&
+    device.deviceID === deviceID &&
+    device.expiresAt > Date.now()
+  );
+  if (!trustedDevice) {
+    res.set("Cache-Control", "no-store");
+    if (!revokeTrustedAdminCookie(req, res)) {
+      return res.status(500).json({ ok: false, error: "Could not revoke trusted admin device" });
+    }
+    return res.status(401).json({ ok: false });
+  }
+  const ip = normalizeIp(req.ip);
+  if (bannedDevices.has(deviceID) || bannedIps.has(ip)) {
+    if (!revokeTrustedAdminCookie(req, res)) {
+      return res.status(500).json({ ok: false, error: "Could not revoke trusted admin device" });
+    }
+    return res.status(403).json({ ok: false, error: "This device or IP address is banned" });
+  }
+  const previousExpiry = trustedDevice.expiresAt;
+  trustedDevice.expiresAt = Date.now() + TRUSTED_ADMIN_MAX_AGE;
+  try {
+    savePersistentState();
+  } catch (error) {
+    trustedDevice.expiresAt = previousExpiry;
+    console.error("Could not renew trusted admin device:", error);
+    return res.status(500).json({ ok: false, error: "Could not renew trusted admin device" });
+  }
+  res.set("Cache-Control", "no-store");
+  res.cookie(TRUSTED_ADMIN_COOKIE, token, {
+    ...trustedAdminCookieOptions(req),
+    maxAge: TRUSTED_ADMIN_MAX_AGE
+  });
+  res.json({ ok: true, ...issueSessionTokens(adminCode), remembered: true });
 });
 
 app.get("/game-save", requireSession, (req, res) => {
@@ -286,14 +404,38 @@ app.post("/login", (req, res) => {
     return res.status(500).json({ ok: false, error: "Could not save login history" });
   }
 
-  const sessionToken = crypto.randomBytes(32).toString("hex");
-  sessionTokens.set(sessionToken, code);
-  const response = { ok: true, role: user.role, sessionToken };
-  if (user.role === "admin") {
-    adminTokens.add(sessionToken);
-    response.adminToken = sessionToken;
+  if (user.role === "admin" && body.rememberDevice === true) {
+    const trustedToken = crypto.randomBytes(32).toString("hex");
+    const previousTrustedDevices = trustedAdminDevices.slice();
+    const now = Date.now();
+    const retainedDevices = trustedAdminDevices
+      .filter(device => device.deviceID !== deviceID && device.expiresAt > now)
+      .slice(-(MAX_TRUSTED_ADMIN_DEVICES - 1));
+    trustedAdminDevices.splice(0, trustedAdminDevices.length, ...retainedDevices, {
+      tokenHash: hashTrustedToken(trustedToken),
+      deviceID,
+      code: adminCode,
+      expiresAt: now + TRUSTED_ADMIN_MAX_AGE
+    });
+    try {
+      savePersistentState();
+    } catch (error) {
+      trustedAdminDevices.splice(0, trustedAdminDevices.length, ...previousTrustedDevices);
+      console.error("Could not remember trusted admin device:", error);
+      return res.status(500).json({ ok: false, error: "Could not remember this device" });
+    }
+    res.cookie(TRUSTED_ADMIN_COOKIE, trustedToken, {
+      ...trustedAdminCookieOptions(req),
+      maxAge: TRUSTED_ADMIN_MAX_AGE
+    });
+  } else if (readCookie(req, TRUSTED_ADMIN_COOKIE) && !revokeTrustedAdminCookie(req, res)) {
+    return res.status(500).json({ ok: false, error: "Could not revoke trusted admin device" });
   }
-  res.json(response);
+  res.json({
+    ok: true,
+    ...issueSessionTokens(code),
+    remembered: user.role === "admin" && body.rememberDevice === true
+  });
 });
 
 app.post("/generate", requireAdmin, (req, res) => {
