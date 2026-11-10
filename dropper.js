@@ -12,14 +12,35 @@
   const stars = Array.from({ length: 48 }, (_, i) => ({ x: (i * 167 + 37) % WIDTH, y: (i * 283 + 61) % HEIGHT, size: i % 5 ? 1 : 2 }));
   let level = 1, unlocked = 1, stage, state = "ready", x = WIDTH / 2, y = 70, previousY = y, cameraY = 0, elapsed = 0, lastFrame = 0, lastHud = 0;
 
-  function loadSaved() {
+  async function loadSaved() {
     try {
       const saved = JSON.parse(localStorage.getItem(KEY) || "null");
       if (saved && Number.isInteger(saved.unlocked)) unlocked = Math.max(1, Math.min(LEVELS, saved.unlocked));
     } catch { unlocked = 1; }
+    const bestTimes = readBestTimes();
+    const saved = await window.SuperstarGameSaves.load("dropper", { unlocked, bestTimes });
+    unlocked = Math.max(1, Math.min(LEVELS, saved.unlocked));
+    try { localStorage.setItem(KEY, JSON.stringify({ unlocked })); } catch { /* Continue without local progress caching. */ }
+    for (let n = 1; n <= LEVELS; n++) {
+      try { localStorage.removeItem(`superstar-dropper-best-${n}`); } catch { break; }
+    }
+    for (const [level, seconds] of Object.entries(saved.bestTimes)) {
+      try { localStorage.setItem(`superstar-dropper-best-${level}`, String(seconds)); } catch { /* Best times are optional. */ }
+    }
+  }
+  function readBestTimes() {
+    const bestTimes = {};
+    for (let n = 1; n <= LEVELS; n++) {
+      try {
+        const value = Number(localStorage.getItem(`superstar-dropper-best-${n}`));
+        if (Number.isFinite(value) && value > 0) bestTimes[n] = value;
+      } catch { break; }
+    }
+    return bestTimes;
   }
   function saveProgress() {
     try { localStorage.setItem(KEY, JSON.stringify({ unlocked })); } catch { /* Continue without persistent progress. */ }
+    window.SuperstarGameSaves.save("dropper", { unlocked, bestTimes: readBestTimes() });
   }
   function bestFor(n) {
     try { const value = Number(localStorage.getItem(`superstar-dropper-best-${n}`)); return Number.isFinite(value) && value > 0 ? value : null; }
@@ -29,6 +50,7 @@
     const old = bestFor(n);
     if (old !== null && old <= seconds) return old;
     try { localStorage.setItem(`superstar-dropper-best-${n}`, String(seconds)); } catch { /* Best times are optional. */ }
+    saveProgress();
     return seconds;
   }
   function rng(seed) {
@@ -165,6 +187,22 @@
     for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) button.addEventListener(type, () => { keys[direction] = false; });
   }
   $("gameAction").addEventListener("click", action); $("pauseButton").addEventListener("click", pause);
+  $("resetDropper").addEventListener("click", async () => {
+    if (!window.confirm("Reset The Drop progress for your login code? This clears all unlocked levels and best times for this game.")) return;
+    try {
+      await window.SuperstarGameSaves.reset("dropper");
+      localStorage.removeItem(KEY);
+      for (let n = 1; n <= LEVELS; n++) localStorage.removeItem(`superstar-dropper-best-${n}`);
+      window.location.reload();
+    } catch (error) {
+      console.error("Could not reset The Drop progress:", error);
+      window.alert(error.message);
+    }
+  });
   levelSelect.addEventListener("change", () => loadLevel(Number(levelSelect.value)));
-  loadSaved(); renderLevels(); loadLevel(1); requestAnimationFrame(frame);
+  async function initialize() {
+    await loadSaved();
+    renderLevels(); loadLevel(1); requestAnimationFrame(frame);
+  }
+  initialize().catch(error => console.error("Could not initialize The Drop:", error));
 })();
