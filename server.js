@@ -12,6 +12,7 @@ app.use(express.json());
 app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "index.html")));
 app.get("/games", (_req, res) => res.sendFile(path.join(__dirname, "games.html")));
 app.get("/starfield.js", (_req, res) => res.sendFile(path.join(__dirname, "starfield.js")));
+app.get("/dropper.js", (_req, res) => res.sendFile(path.join(__dirname, "dropper.js")));
 
 const superadminCode = process.env.SUPERADMIN_CODE;
 const userCode = process.env.USER_CODE;
@@ -19,10 +20,9 @@ if (!superadminCode || !userCode || superadminCode === userCode) {
   throw new Error("Set distinct SUPERADMIN_CODE and USER_CODE environment variables");
 }
 
-const users = {
-  [superadminCode]: { role: "superadmin", lockedDevice: null },
-  [userCode]: { role: "user", lockedDevice: null }
-};
+const users = Object.create(null);
+users[superadminCode] = { role: "superadmin", lockedDevice: null };
+users[userCode] = { role: "user", lockedDevice: null };
 const adminTokens = new Set();
 const MAX_LOGIN_HISTORY = 500;
 const dataDirectory = process.env.DATA_DIR || path.join(__dirname, "data");
@@ -34,23 +34,53 @@ function loadPersistentState() {
     const saved = JSON.parse(fs.readFileSync(dataFile, "utf8"));
     if (!Array.isArray(saved.loginHistory) ||
         !Array.isArray(saved.bannedDevices) ||
-        !Array.isArray(saved.bannedIps)) {
+        !Array.isArray(saved.bannedIps) ||
+        (saved.generatedUsers !== undefined && !Array.isArray(saved.generatedUsers)) ||
+        (saved.lockedDevices !== undefined && !Array.isArray(saved.lockedDevices))) {
       throw new Error("Stored service data has an invalid format");
+    }
+    const generatedUsers = Object.create(null);
+    for (const account of saved.generatedUsers || []) {
+      if (!account || typeof account.code !== "string" || !/^[a-f0-9]{8}$/i.test(account.code) ||
+          !["admin", "user", "guest"].includes(account.role) ||
+          Object.prototype.hasOwnProperty.call(generatedUsers, account.code)) {
+        throw new Error("Stored generated users have an invalid format");
+      }
+      generatedUsers[account.code] = account.role;
+    }
+    const lockedDevices = [];
+    const lockedCodes = new Set();
+    for (const lock of saved.lockedDevices || []) {
+      if (!lock || typeof lock.code !== "string" || !lock.code ||
+          typeof lock.deviceID !== "string" || !lock.deviceID || lock.deviceID.length > 200 ||
+          lockedCodes.has(lock.code)) {
+        throw new Error("Stored device locks have an invalid format");
+      }
+      lockedCodes.add(lock.code);
+      lockedDevices.push({ code: lock.code, deviceID: lock.deviceID });
     }
     return {
       loginHistory: saved.loginHistory.slice(-MAX_LOGIN_HISTORY),
       bannedDevices: new Set(saved.bannedDevices),
-      bannedIps: new Set(saved.bannedIps)
+      bannedIps: new Set(saved.bannedIps),
+      generatedUsers,
+      lockedDevices
     };
   } catch (error) {
     if (error.code === "ENOENT") {
-      return { loginHistory: [], bannedDevices: new Set(), bannedIps: new Set() };
+      return { loginHistory: [], bannedDevices: new Set(), bannedIps: new Set(), generatedUsers: Object.create(null), lockedDevices: [] };
     }
     throw error;
   }
 }
 
 const persistentState = loadPersistentState();
+for (const [code, role] of Object.entries(persistentState.generatedUsers)) {
+  if (!Object.prototype.hasOwnProperty.call(users, code)) users[code] = { role, lockedDevice: null };
+}
+for (const lock of persistentState.lockedDevices) {
+  if (Object.prototype.hasOwnProperty.call(users, lock.code)) users[lock.code].lockedDevice = lock.deviceID;
+}
 const loginHistory = persistentState.loginHistory;
 const bannedDevices = persistentState.bannedDevices;
 const bannedIps = persistentState.bannedIps;
@@ -60,7 +90,13 @@ function savePersistentState() {
   fs.writeFileSync(temporaryFile, JSON.stringify({
     loginHistory,
     bannedDevices: Array.from(bannedDevices),
-    bannedIps: Array.from(bannedIps)
+    bannedIps: Array.from(bannedIps),
+    generatedUsers: Object.entries(users)
+      .filter(([code]) => code !== superadminCode && code !== userCode)
+      .map(([code, user]) => ({ code, role: user.role })),
+    lockedDevices: Object.entries(users)
+      .filter(([, user]) => user.lockedDevice)
+      .map(([code, user]) => ({ code, deviceID: user.lockedDevice }))
   }, null, 2), { encoding: "utf8", mode: 0o600 });
   fs.renameSync(temporaryFile, dataFile);
 }
@@ -139,6 +175,13 @@ app.post("/generate", requireAdmin, (req, res) => {
     code = crypto.randomBytes(4).toString("hex");
   } while (users[code]);
   users[code] = { role, lockedDevice: null };
+  try {
+    savePersistentState();
+  } catch (error) {
+    delete users[code];
+    console.error("Could not save generated code:", error);
+    return res.status(500).json({ error: "Could not save generated code" });
+  }
   res.json({ code });
 });
 
@@ -151,7 +194,15 @@ app.post("/admin/reset", requireAdmin, (req, res) => {
   if (typeof code !== "string" || !users[code]) {
     return res.status(404).json({ error: "Code not found" });
   }
+  const previousDevice = users[code].lockedDevice;
   users[code].lockedDevice = null;
+  try {
+    savePersistentState();
+  } catch (error) {
+    users[code].lockedDevice = previousDevice;
+    console.error("Could not save device reset:", error);
+    return res.status(500).json({ error: "Could not save device reset" });
+  }
   res.json({ ok: true });
 });
 
