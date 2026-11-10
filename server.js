@@ -14,6 +14,7 @@ app.get("/games", (_req, res) => res.sendFile(path.join(__dirname, "games.html")
 app.get("/starfield.js", (_req, res) => res.sendFile(path.join(__dirname, "starfield.js")));
 app.get("/dropper.js", (_req, res) => res.sendFile(path.join(__dirname, "dropper.js")));
 app.get("/dropper3d.js", (_req, res) => res.sendFile(path.join(__dirname, "dropper3d.js")));
+app.get("/favicon.png", (_req, res) => res.sendFile(path.join(__dirname, "favicon.png")));
 
 const adminCode = process.env.ADMIN_CODE || process.env.SUPERADMIN_CODE;
 const userCode = process.env.USER_CODE;
@@ -65,6 +66,7 @@ function loadPersistentState() {
       throw new Error("Stored service data has an invalid format");
     }
     const generatedUsers = Object.create(null);
+    const generatedUserOrder = [];
     for (const account of saved.generatedUsers || []) {
       if (!account || typeof account.code !== "string" || !/^[a-f0-9]{8}$/i.test(account.code) ||
           !["admin", "user", "guest"].includes(account.role) ||
@@ -72,6 +74,7 @@ function loadPersistentState() {
         throw new Error("Stored generated users have an invalid format");
       }
       generatedUsers[account.code] = "guest";
+      generatedUserOrder.push(account.code);
     }
     const lockedDevices = [];
     const lockedCodes = new Set();
@@ -118,20 +121,23 @@ function loadPersistentState() {
       bannedDevices: new Set(saved.bannedDevices),
       bannedIps: new Set(saved.bannedIps),
       generatedUsers,
+      generatedUserOrder,
       lockedDevices,
       gameSaves,
       accountNames
     };
   } catch (error) {
     if (error.code === "ENOENT") {
-      return { loginHistory: [], bannedDevices: new Set(), bannedIps: new Set(), generatedUsers: Object.create(null), lockedDevices: [], gameSaves: Object.create(null), accountNames: Object.create(null) };
+      return { loginHistory: [], bannedDevices: new Set(), bannedIps: new Set(), generatedUsers: Object.create(null), generatedUserOrder: [], lockedDevices: [], gameSaves: Object.create(null), accountNames: Object.create(null) };
     }
     throw error;
   }
 }
 
 const persistentState = loadPersistentState();
-for (const [code, role] of Object.entries(persistentState.generatedUsers)) {
+const generatedUserOrder = persistentState.generatedUserOrder.filter(code => code !== userCode);
+for (const code of generatedUserOrder) {
+  const role = persistentState.generatedUsers[code];
   if (code !== userCode && !Object.prototype.hasOwnProperty.call(users, code)) users[code] = { role, lockedDevice: null };
 }
 for (const lock of persistentState.lockedDevices) {
@@ -149,9 +155,9 @@ function savePersistentState() {
     loginHistory,
     bannedDevices: Array.from(bannedDevices),
     bannedIps: Array.from(bannedIps),
-    generatedUsers: Object.entries(users)
-      .filter(([code]) => code !== adminCode && code !== userCode)
-      .map(([code, user]) => ({ code, role: user.role })),
+    generatedUsers: generatedUserOrder
+      .filter(code => code !== adminCode && code !== userCode && users[code])
+      .map(code => ({ code, role: users[code].role })),
     lockedDevices: Object.entries(users)
       .filter(([, user]) => user.lockedDevice)
       .map(([code, user]) => ({ code, deviceID: user.lockedDevice })),
@@ -300,10 +306,12 @@ app.post("/generate", requireAdmin, (req, res) => {
     code = crypto.randomBytes(4).toString("hex");
   } while (users[code]);
   users[code] = { role: "guest", lockedDevice: null };
+  generatedUserOrder.push(code);
   try {
     savePersistentState();
   } catch (error) {
     delete users[code];
+    generatedUserOrder.pop();
     console.error("Could not save generated code:", error);
     return res.status(500).json({ error: "Could not save generated code" });
   }
@@ -311,10 +319,9 @@ app.post("/generate", requireAdmin, (req, res) => {
 });
 
 app.get("/admin/users", requireAdmin, (_req, res) => {
-  res.json(Object.fromEntries(Object.entries(users).filter(([code]) => code !== adminCode && code !== userCode).map(([code, user]) => [
-    code,
-    { ...user, name: accountNames[code] || "" }
-  ])));
+  res.json(generatedUserOrder
+    .filter(code => code !== adminCode && code !== userCode && users[code])
+    .map(code => ({ code, ...users[code], name: accountNames[code] || "" })));
 });
 
 app.post("/admin/user-name", requireAdmin, (req, res) => {
