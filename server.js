@@ -13,15 +13,16 @@ app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "index.html")));
 app.get("/games", (_req, res) => res.sendFile(path.join(__dirname, "games.html")));
 app.get("/starfield.js", (_req, res) => res.sendFile(path.join(__dirname, "starfield.js")));
 app.get("/dropper.js", (_req, res) => res.sendFile(path.join(__dirname, "dropper.js")));
+app.get("/dropper3d.js", (_req, res) => res.sendFile(path.join(__dirname, "dropper3d.js")));
 
-const superadminCode = process.env.SUPERADMIN_CODE;
+const adminCode = process.env.ADMIN_CODE || process.env.SUPERADMIN_CODE;
 const userCode = process.env.USER_CODE;
-if (!superadminCode || !userCode || superadminCode === userCode) {
-  throw new Error("Set distinct SUPERADMIN_CODE and USER_CODE environment variables");
+if (!adminCode || !userCode || adminCode === userCode) {
+  throw new Error("Set distinct ADMIN_CODE (or legacy SUPERADMIN_CODE) and USER_CODE environment variables");
 }
 
 const users = Object.create(null);
-users[superadminCode] = { role: "superadmin", lockedDevice: null };
+users[adminCode] = { role: "admin", lockedDevice: null };
 users[userCode] = { role: "user", lockedDevice: null };
 const adminTokens = new Set();
 const MAX_LOGIN_HISTORY = 500;
@@ -46,7 +47,7 @@ function loadPersistentState() {
           Object.prototype.hasOwnProperty.call(generatedUsers, account.code)) {
         throw new Error("Stored generated users have an invalid format");
       }
-      generatedUsers[account.code] = account.role;
+      generatedUsers[account.code] = account.role === "admin" ? "user" : account.role;
     }
     const lockedDevices = [];
     const lockedCodes = new Set();
@@ -60,7 +61,11 @@ function loadPersistentState() {
       lockedDevices.push({ code: lock.code, deviceID: lock.deviceID });
     }
     return {
-      loginHistory: saved.loginHistory.slice(-MAX_LOGIN_HISTORY),
+      loginHistory: saved.loginHistory.slice(-MAX_LOGIN_HISTORY).map(login => {
+        if (login?.role === "superadmin") return { ...login, role: "admin" };
+        if (login?.role === "admin") return { ...login, role: "user" };
+        return login;
+      }),
       bannedDevices: new Set(saved.bannedDevices),
       bannedIps: new Set(saved.bannedIps),
       generatedUsers,
@@ -92,7 +97,7 @@ function savePersistentState() {
     bannedDevices: Array.from(bannedDevices),
     bannedIps: Array.from(bannedIps),
     generatedUsers: Object.entries(users)
-      .filter(([code]) => code !== superadminCode && code !== userCode)
+      .filter(([code]) => code !== adminCode && code !== userCode)
       .map(([code, user]) => ({ code, role: user.role })),
     lockedDevices: Object.entries(users)
       .filter(([, user]) => user.lockedDevice)
@@ -108,7 +113,7 @@ function normalizeIp(ip) {
 function requireAdmin(req, res, next) {
   const token = req.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!token || !adminTokens.has(token)) {
-    return res.status(403).json({ error: "Superadmin access required" });
+    return res.status(403).json({ error: "Admin access required" });
   }
   next();
 }
@@ -156,7 +161,7 @@ app.post("/login", (req, res) => {
   }
 
   const response = { ok: true, role: user.role };
-  if (user.role === "superadmin") {
+  if (user.role === "admin") {
     const token = crypto.randomBytes(32).toString("hex");
     adminTokens.add(token);
     response.adminToken = token;
@@ -166,7 +171,7 @@ app.post("/login", (req, res) => {
 
 app.post("/generate", requireAdmin, (req, res) => {
   const role = req.body.role;
-  if (!["admin", "user", "guest"].includes(role)) {
+  if (!["user", "guest"].includes(role)) {
     return res.status(400).json({ error: "Invalid role" });
   }
 

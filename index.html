@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Superadmin Dashboard</title>
+  <title>Admin Dashboard</title>
   <style>
     :root { color-scheme: dark; }
     :root[data-theme="light"] { color-scheme: light; }
@@ -121,7 +121,6 @@
   <div class="card" id="adminPanel" style="display:none">
     <h2>Code Generator</h2>
     <select id="roleSelect">
-      <option value="admin">Admin</option>
       <option value="user">User</option>
       <option value="guest">Guest</option>
     </select>
@@ -201,7 +200,7 @@ async function login() {
   document.getElementById("loginCard").style.display = "none";
   document.getElementById("welcomePanel").style.display = "block";
   document.getElementById("welcomeMessage").textContent = `Signed in as ${role}. Enjoy the stars.`;
-  if(role === "superadmin") showAdminPanel();
+  if(role === "admin") showAdminPanel();
 }
 
 function showAdminPanel() {
@@ -229,8 +228,9 @@ async function loadUsers() {
   const users = await res.json();
   const list = document.getElementById("userList");
   list.innerHTML="";
-  for(const code in users) {
-    const user = users[code];
+  const userEntries = Object.entries(users);
+  userEntries.sort(([, left], [, right]) => Number(left.role === "admin") - Number(right.role === "admin"));
+  for(const [code, user] of userEntries) {
     const li = document.createElement("li");
     const codeLabel = document.createElement("span");
     codeLabel.textContent = "••••••";

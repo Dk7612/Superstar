@@ -1,6 +1,7 @@
 (() => {
   const canvas = document.getElementById("dropperCanvas");
   if (!canvas) return;
+  const gamePanel = document.getElementById("classicGame");
   const ctx = canvas.getContext("2d");
   const $ = id => document.getElementById(id);
   const levelSelect = $("levelSelect");
@@ -43,7 +44,7 @@
       gates.push({ y: 430 + i * 310, center, width: gap });
     }
     const finish = gates[gates.length - 1].y + 400;
-    return { gates, finish, speed: 175 + n * 2.9, steer: 365 };
+    return { gates, finish, speed: 180 * Math.pow(1.022, n - 1), steer: 365 };
   }
   function difficulty(n) { return n < 6 ? "Warm up" : n < 16 ? "Picking up" : n < 31 ? "Fast fall" : n < 46 ? "Expert drop" : "Superstar"; }
   function renderLevels() {
@@ -148,6 +149,7 @@
     const dt = lastFrame ? Math.min((timestamp - lastFrame) / 1000, .04) : 0; lastFrame = timestamp; update(dt); draw(); requestAnimationFrame(frame);
   }
   document.addEventListener("keydown", event => {
+    if (gamePanel.hidden) return;
     const key = event.key.toLowerCase();
     if (["arrowleft", "arrowright", " ", "a", "d"].includes(key)) event.preventDefault();
     if (key === "arrowleft" || key === "a") keys.left = true;
@@ -155,6 +157,7 @@
     if (key === " " && !event.repeat) pause();
   });
   document.addEventListener("keyup", event => { const key = event.key.toLowerCase(); if (key === "arrowleft" || key === "a") keys.left = false; if (key === "arrowright" || key === "d") keys.right = false; });
+  document.addEventListener("arcade-tab-change", event => { if (event.detail !== "classic" && state === "playing") pause(); keys.left = false; keys.right = false; });
   window.addEventListener("blur", () => { keys.left = false; keys.right = false; });
   for (const button of document.querySelectorAll(".touch-controls [data-direction]")) {
     const direction = button.dataset.direction;

@@ -31,6 +31,10 @@
     .intro p { color:var(--muted); margin:0; line-height:1.55; }
     .level-picker { display:flex; align-items:center; gap:10px; white-space:nowrap; color:var(--muted); font-size:14px; }
     .level-picker select { color:inherit; background:#111a34; border:1px solid var(--line); border-radius:8px; padding:9px 12px; }
+    .game-tabs { display:flex; gap:10px; margin:0 0 16px; }
+    .game-tabs button[aria-selected="true"] { background:linear-gradient(135deg,#657cf0,#529ec2); border-color:transparent; color:#fff; }
+    .game-panel[hidden] { display:none; }
+
     .game-shell { overflow:hidden; background:var(--panel); border:1px solid var(--line); border-radius:18px; box-shadow:0 18px 55px rgba(0,0,0,.3); backdrop-filter:blur(10px); }
     .game-topbar { display:grid; grid-template-columns:1fr minmax(120px,2fr) 1fr; align-items:center; gap:18px; padding:14px 20px; border-bottom:1px solid var(--line); }
     .level-readout { font-size:14px; font-weight:700; } .level-readout span { display:block; color:var(--muted); font-size:11px; font-weight:400; margin-top:4px; }
@@ -39,7 +43,7 @@
     .progress-fill { width:0; height:100%; border-radius:inherit; background:linear-gradient(90deg,#7c8eff,#8de7ff); transition:width .12s linear; }
     .time-readout { text-align:right; color:var(--muted); font-size:12px; } .time-readout strong { display:block; font-size:16px; font-variant-numeric:tabular-nums; margin-top:3px; }
     .play-area { position:relative; width:min(100%,720px); margin:0 auto; background:#090f21; }
-    #dropperCanvas { display:block; width:100%; height:auto; aspect-ratio:6/5; }
+    #dropperCanvas,#skyCanvas { display:block; width:100%; height:auto; aspect-ratio:6/5; }
     .game-overlay { position:absolute; inset:0; display:grid; place-items:center; padding:24px; background:rgba(5,9,23,.44); backdrop-filter:blur(4px); }
     .game-overlay[hidden] { display:none; }
     .overlay-card { width:min(390px,100%); padding:26px; border:1px solid rgba(190,205,255,.25); border-radius:16px; background:rgba(14,22,47,.94); text-align:center; box-shadow:0 18px 48px rgba(0,0,0,.38); }
@@ -60,7 +64,7 @@
     :root[data-theme="light"] .overlay-card { background:rgba(255,255,255,.96); color:#202945; border-color:#cbd5eb; }
     :root[data-theme="light"] .overlay-card p { color:#53617e; }
     :root[data-theme="light"] #gameAction { background:linear-gradient(135deg,#657cf0,#529ec2); color:white; }
-    @media(max-width:640px) { header { padding:12px 4%; } main { width:94%; margin-top:20px; } .intro { align-items:flex-start; flex-direction:column; } .game-topbar { grid-template-columns:1fr 1.4fr; gap:12px; padding:12px 14px; } .time-readout { display:none; } .game-controls { padding:12px 14px; } .control-hint { font-size:11px; } .touch-controls { display:flex; } }
+    @media(max-width:640px) { .game-tabs { flex-wrap:wrap; } .touch-controls.sky-touch-controls { display:grid; grid-template-columns:repeat(4,64px); } header { padding:12px 4%; } main { width:94%; margin-top:20px; } .intro { align-items:flex-start; flex-direction:column; } .game-topbar { grid-template-columns:1fr 1.4fr; gap:12px; padding:12px 14px; } .time-readout { display:none; } .game-controls { padding:12px 14px; } .control-hint { font-size:11px; } .touch-controls { display:flex; } }
     @media(prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto !important; transition-duration:.01ms !important; } .starfield { opacity:.65; } }
   </style>
   <script>
@@ -82,6 +86,8 @@
     </div></details>
   </header>
   <main>
+    <div class="game-tabs" role="tablist" aria-label="Choose a game"><button type="button" role="tab" id="classicTab" aria-selected="true" aria-controls="classicGame">The Drop</button><button type="button" role="tab" id="skyTab" aria-selected="false" aria-controls="skyGame" tabindex="-1">Skyfall 3D</button></div>
+    <div class="game-panel" id="classicGame" role="tabpanel" aria-labelledby="classicTab">
     <section class="intro" aria-labelledby="games-heading"><div><div class="eyebrow">Superstar arcade · game 01</div><h2 id="games-heading">The Drop</h2><p>One tiny diver. Fifty floors. Find the gap and keep falling.</p></div>
       <label class="level-picker" for="levelSelect">Level<select id="levelSelect" aria-label="Choose an unlocked level"></select></label>
     </section>
@@ -97,7 +103,25 @@
       <div class="touch-controls" aria-label="Touch controls"><button type="button" data-direction="left" aria-label="Move left">←</button><button type="button" data-direction="right" aria-label="Move right">→</button></div>
       <div class="game-controls"><div class="control-hint"><kbd>←</kbd><kbd>→</kbd> or <kbd>A</kbd><kbd>D</kbd> to steer · <kbd>Space</kbd> to pause</div><div><button type="button" class="pause-button" id="pauseButton" aria-label="Pause game">Pause</button></div></div>
     </section>
+    </div>
+    <section class="game-panel" id="skyGame" role="tabpanel" aria-labelledby="skyTab" hidden>
+      <div class="intro"><div><div class="eyebrow">Perspective freefall · game 02</div><h2>Skyfall 3D</h2><p>Dive through a shifting tower of chunky neon obstacles. Steer in every direction to find the opening.</p></div>
+        <label class="level-picker" for="skyLevelSelect">Level<select id="skyLevelSelect" aria-label="Choose an unlocked Skyfall 3D level"></select></label>
+      </div>
+      <section class="game-shell" aria-label="Skyfall 3D game">
+        <div class="game-topbar"><div class="level-readout"><span id="skyLevelName">LEVEL 01 / 50</span><span id="skyDifficulty">Warm up</span></div>
+          <div><div class="progress-label"><span>DROP PROGRESS</span><span id="skyProgressPercent">0%</span></div><div class="progress-track" role="progressbar" aria-label="Skyfall level progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="progress-fill" id="skyProgressFill"></div></div></div>
+          <div class="time-readout">BEST TIME<strong id="skyBestTime">—</strong></div>
+        </div>
+        <div class="play-area"><canvas id="skyCanvas" width="720" height="600" aria-label="Skyfall 3D. Move left, right, up and down to fly through the square gaps in each obstacle."></canvas>
+          <div class="game-overlay" id="skyOverlay"><div class="overlay-card"><div class="overlay-kicker" id="skyOverlayKicker">50 floors. One way down.</div><h3 id="skyOverlayTitle">Ready to jump?</h3><p id="skyOverlayMessage">Steer through the neon tower. One collision and you restart the level.</p><button type="button" id="skyAction">Start level 1</button></div></div>
+          <div class="sr-only" id="skyAnnouncement" aria-live="polite"></div>
+        </div>
+        <div class="touch-controls sky-touch-controls" aria-label="Skyfall movement controls"><button type="button" data-move="left" aria-label="Move left">←</button><button type="button" data-move="up" aria-label="Move up">↑</button><button type="button" data-move="down" aria-label="Move down">↓</button><button type="button" data-move="right" aria-label="Move right">→</button></div>
+        <div class="game-controls"><div class="control-hint"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrow keys to dodge <span aria-hidden="true">·</span> <kbd>Space</kbd> to pause</div><div><button type="button" class="pause-button" id="skyPause" aria-label="Pause Skyfall 3D">Pause</button></div></div>
+      </section>
+    </section>
   </main>
-  <script src="/starfield.js" defer></script><script src="/dropper.js" defer></script>
+  <script src="/starfield.js" defer></script><script src="/dropper.js" defer></script><script src="/dropper3d.js" defer></script>
 </body>
 </html>
