@@ -121,11 +121,7 @@
 
   <div class="card" id="adminPanel" style="display:none">
     <h2>Code Generator</h2>
-    <select id="roleSelect">
-      <option value="user">User</option>
-      <option value="guest">Guest</option>
-    </select>
-    <button class="generate" onclick="generateCode()">Generate Code</button>
+    <button class="generate" onclick="generateCode()">Generate Guest Code</button>
     <div id="newCode"></div>
 
     <h2>User List</h2>
@@ -199,7 +195,7 @@ function restoreSession() {
   try {
     if (sessionStorage.getItem("superstar-authenticated") !== "1") return;
     const session = JSON.parse(sessionStorage.getItem("superstar-session"));
-    if (!session || !["admin", "user", "guest"].includes(session.role) ||
+    if (!session || !["admin", "guest"].includes(session.role) ||
         typeof session.sessionToken !== "string" ||
         (session.role === "admin" && typeof session.adminToken !== "string")) return;
     showAuthenticatedDashboard(session);
@@ -237,10 +233,9 @@ function showAdminPanel() {
 }
 
 async function generateCode() {
-  const roleSelect = document.getElementById("roleSelect").value;
   const res = await fetch("/generate", {
     method:"POST", headers:adminHeaders(true),
-    body: JSON.stringify({role: roleSelect})
+    body: JSON.stringify({role: "guest"})
   });
   if (!res.ok) return alert((await res.json()).error);
   const data = await res.json();

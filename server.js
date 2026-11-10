@@ -17,13 +17,12 @@ app.get("/dropper3d.js", (_req, res) => res.sendFile(path.join(__dirname, "dropp
 
 const adminCode = process.env.ADMIN_CODE || process.env.SUPERADMIN_CODE;
 const userCode = process.env.USER_CODE;
-if (!adminCode || !userCode || adminCode === userCode) {
-  throw new Error("Set distinct ADMIN_CODE (or legacy SUPERADMIN_CODE) and USER_CODE environment variables");
+if (!adminCode) {
+  throw new Error("Set ADMIN_CODE (or legacy SUPERADMIN_CODE) environment variable");
 }
 
 const users = Object.create(null);
 users[adminCode] = { role: "admin", lockedDevice: null };
-users[userCode] = { role: "user", lockedDevice: null };
 const adminTokens = new Set();
 const sessionTokens = new Map();
 const MAX_LOGIN_HISTORY = 500;
@@ -72,7 +71,7 @@ function loadPersistentState() {
           Object.prototype.hasOwnProperty.call(generatedUsers, account.code)) {
         throw new Error("Stored generated users have an invalid format");
       }
-      generatedUsers[account.code] = account.role === "admin" ? "user" : account.role;
+      generatedUsers[account.code] = "guest";
     }
     const lockedDevices = [];
     const lockedCodes = new Set();
@@ -110,8 +109,10 @@ function loadPersistentState() {
     }
     return {
       loginHistory: saved.loginHistory.slice(-MAX_LOGIN_HISTORY).map(login => {
-        if (login?.role === "superadmin") return { ...login, role: "admin" };
-        if (login?.role === "admin") return { ...login, role: "user" };
+        if (login?.code === adminCode) return { ...login, role: "admin" };
+        if (login?.role === "superadmin" || login?.role === "admin" || login?.role === "user") {
+          return { ...login, role: "guest" };
+        }
         return login;
       }),
       bannedDevices: new Set(saved.bannedDevices),
@@ -131,7 +132,7 @@ function loadPersistentState() {
 
 const persistentState = loadPersistentState();
 for (const [code, role] of Object.entries(persistentState.generatedUsers)) {
-  if (!Object.prototype.hasOwnProperty.call(users, code)) users[code] = { role, lockedDevice: null };
+  if (code !== userCode && !Object.prototype.hasOwnProperty.call(users, code)) users[code] = { role, lockedDevice: null };
 }
 for (const lock of persistentState.lockedDevices) {
   if (Object.prototype.hasOwnProperty.call(users, lock.code)) users[lock.code].lockedDevice = lock.deviceID;
@@ -290,8 +291,7 @@ app.post("/login", (req, res) => {
 });
 
 app.post("/generate", requireAdmin, (req, res) => {
-  const role = req.body.role;
-  if (!["user", "guest"].includes(role)) {
+  if ((req.body || {}).role !== "guest") {
     return res.status(400).json({ error: "Invalid role" });
   }
 
@@ -299,7 +299,7 @@ app.post("/generate", requireAdmin, (req, res) => {
   do {
     code = crypto.randomBytes(4).toString("hex");
   } while (users[code]);
-  users[code] = { role, lockedDevice: null };
+  users[code] = { role: "guest", lockedDevice: null };
   try {
     savePersistentState();
   } catch (error) {
@@ -311,7 +311,7 @@ app.post("/generate", requireAdmin, (req, res) => {
 });
 
 app.get("/admin/users", requireAdmin, (_req, res) => {
-  res.json(Object.fromEntries(Object.entries(users).map(([code, user]) => [
+  res.json(Object.fromEntries(Object.entries(users).filter(([code]) => code !== adminCode && code !== userCode).map(([code, user]) => [
     code,
     { ...user, name: accountNames[code] || "" }
   ])));

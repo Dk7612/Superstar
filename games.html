@@ -74,7 +74,7 @@
     try {
       const session = JSON.parse(sessionStorage.getItem("superstar-session"));
       if (sessionStorage.getItem("superstar-authenticated") !== "1" ||
-          !session || !["admin", "user", "guest"].includes(session.role) ||
+          !session || !["admin", "guest"].includes(session.role) ||
           typeof session.sessionToken !== "string") window.location.replace("/");
     } catch {
       window.location.replace("/");

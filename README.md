@@ -14,11 +14,11 @@ NOTE 3.0: if you ask me to make changes to the proxy or something and i say yes 
 
 ## Persistent service state
 
-The service stores login history, generated login codes, account names, device locks, device/IP bans, and per-login-code game progress in `data/service-data.json`. Set the `DATA_DIR` environment variable to a persistent disk path to keep this state across restarts and redeploys. On Render, attach a persistent disk to the web service and set `DATA_DIR` to its mount path (for example, `/var/data`). Without a persistent disk, Render may erase data stored on the service filesystem when it restarts or is redeployed. The admin login code is configured through `ADMIN_CODE` (or the legacy `SUPERADMIN_CODE` variable); regular logins use `USER_CODE`.
+The service stores login history, generated login codes, account names, device locks, device/IP bans, and per-login-code game progress in `data/service-data.json`. Set the `DATA_DIR` environment variable to a persistent disk path to keep this state across restarts and redeploys. On Render, attach a persistent disk to the web service and set `DATA_DIR` to its mount path (for example, `/var/data`). Without a persistent disk, Render may erase data stored on the service filesystem when it restarts or is redeployed. The admin login code is configured through `ADMIN_CODE` (or the legacy `SUPERADMIN_CODE` variable). A previously configured `USER_CODE` is ignored, so that login is disabled.
 
 ## Login code configuration
 
-Set distinct `ADMIN_CODE` and `USER_CODE` environment variables in the hosting service before starting the app. Existing deployments can keep using `SUPERADMIN_CODE`; it remains supported as a fallback. Do not put code values in source files or commit messages. Generated accounts can have the `user` or `guest` role; only the configured admin account can manage users, login history, and bans. Previously generated admin-role accounts are downgraded to user access when persistent state is loaded.
+Set `ADMIN_CODE` in the hosting service before starting the app. Existing deployments can keep using `SUPERADMIN_CODE`; it remains supported as a fallback. `USER_CODE` is no longer needed and is ignored if still configured. Do not put code values in source files or commit messages. Newly generated accounts have the `guest` role; only the configured admin account can manage login history, bans, and generated account names. Previously generated accounts are migrated to guest access when persistent state is loaded.
 
 ## Game progress
 
