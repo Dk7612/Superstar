@@ -15,6 +15,7 @@
     .brand { display:inline-flex; align-items:center; gap:10px; color:inherit; font-size:20px; font-weight:700; text-decoration:none; }
     .brand img { display:block; width:42px; height:42px; border-radius:11px; object-fit:cover; }
     .nav-actions { display:flex; align-items:center; gap:14px; margin-left:auto; }
+    .games-nav-button { padding:12px 22px; font-size:17px; font-weight:700; }
     .star-settings { position:relative; }
     .star-settings[open] { z-index:20; }
     .star-settings summary { list-style:none; cursor:pointer; background:#27365f; color:#f5f7ff; padding:9px 14px; border:1px solid rgba(190,205,255,.18); border-radius:7px; }
@@ -74,9 +75,8 @@
 
 <canvas class="starfield" aria-hidden="true"></canvas>
 <nav class="container top-nav">
-  <a class="brand" href="/" aria-label="Superstar home"><img src="/favicon.png" alt=""><span>Superstar</span></a>
+  <a class="brand" href="/" aria-label="Superstar home"><img src="/favicon.png?v=2" alt=""><span>Superstar</span></a>
   <div class="nav-actions">
-    <a href="/games"><button type="button">Games</button></a>
     <details class="star-settings">
       <summary>Star settings</summary>
       <div class="settings-menu">
@@ -107,6 +107,7 @@
         </label>
       </div>
     </details>
+    <a href="/games"><button class="games-nav-button" type="button">Games</button></a>
   </div>
 </nav>
 
@@ -190,7 +191,7 @@ document.getElementById("loginForm").addEventListener("submit", event => {
 function showAuthenticatedDashboard(session) {
   role = session.role;
   adminToken = session.adminToken || "";
-  document.getElementById("siteIcon").href = "/favicon.png";
+  document.getElementById("siteIcon").href = "/favicon.png?v=2";
   document.body.classList.remove("logged-out");
   document.body.classList.add("authenticated");
   document.getElementById("loginCard").style.display = "none";
