@@ -260,6 +260,22 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
 
+app.post("/session/trusted-device/revoke", (req, res) => {
+  const token = readCookie(req, TRUSTED_ADMIN_COOKIE);
+  const deviceID = req.get("x-device-id") || "";
+  const tokenHash = token ? hashTrustedToken(token) : "";
+  const trustedDevice = trustedAdminDevices.find(device => device.tokenHash === tokenHash);
+  if (trustedDevice && trustedDevice.deviceID === deviceID) {
+    if (!revokeTrustedAdminCookie(req, res)) {
+      return res.status(500).json({ ok: false, error: "Could not revoke trusted admin device" });
+    }
+  } else {
+    res.clearCookie(TRUSTED_ADMIN_COOKIE, trustedAdminCookieOptions(req));
+  }
+  res.set("Cache-Control", "no-store");
+  res.json({ ok: true });
+});
+
 app.get("/session/restore", (req, res) => {
   const token = readCookie(req, TRUSTED_ADMIN_COOKIE);
   const deviceID = req.get("x-device-id") || "";

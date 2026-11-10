@@ -64,11 +64,17 @@
     body.logged-out #loginCard { width:min(320px,100%); margin:0; padding:0; background:transparent; color:#111; border:0; border-radius:0; box-shadow:none; backdrop-filter:none; }
     body.logged-out #loginCard h2 { margin:0 0 16px; font-size:20px; font-weight:500; }
     body.logged-out #loginForm input { display:block; width:100%; margin:0 0 10px; background:#fff; color:#111; border:1px solid #c9c9c9; border-radius:4px; }
-    body.logged-out #loginForm .remember-device { display:flex; align-items:center; gap:8px; margin:0 0 12px; color:#333; font-size:13px; }
-    body.logged-out #loginForm .remember-device input { display:inline-block; width:auto; margin:0; }
     body.logged-out #loginForm button { margin:0; padding:8px 14px; background:#f3f3f3; color:#111; border:1px solid #bdbdbd; border-radius:4px; }
     body.logged-out #loginForm button:hover { background:#e9e9e9; }
     body.logged-out .notice { color:#666; font-size:12px; line-height:1.5; }
+    #cookieConsentDialog { width:min(440px,calc(100% - 32px)); padding:26px; border:1px solid #cbd5eb; border-radius:14px; color:#202945; background:#fff; box-shadow:0 24px 80px rgba(0,0,0,.28); }
+    #cookieConsentDialog::backdrop { background:rgba(9,16,36,.58); }
+    #cookieConsentDialog h2 { margin:0 0 10px; font-size:22px; }
+    #cookieConsentDialog p { margin:0; color:#53617e; line-height:1.55; }
+    #cookieConsentDialog .cookie-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:22px; }
+    #cookieConsentDialog button { margin:0; padding:9px 16px; }
+    #cookieConsentDialog button.accept-cookies { color:#fff; background:#536bc3; border-color:#536bc3; }
+    #cookieSettingsLink { display:inline-block; margin-top:12px; padding:0; border:0; background:none; color:#536bc3; text-decoration:underline; font-size:12px; cursor:pointer; }
     #welcomePanel { display:none; }
     @media (prefers-reduced-motion: reduce) { .starfield { opacity:.65; } }
   </style>
@@ -119,7 +125,6 @@
     <h2>Login</h2>
     <form id="loginForm">
       <input id="codeInput" type="password" placeholder="Access code" autocomplete="current-password" required>
-      <label class="remember-device"><input id="rememberDevice" type="checkbox"> Remember this device for 30 days (admin only)</label>
       <button type="submit">Login</button>
     </form>
     <p class="notice">Access codes, IP addresses, device IDs, and login times are recorded.</p>
@@ -129,6 +134,7 @@
     <h2>You're logged in</h2>
     <p class="notice" id="welcomeMessage">Welcome to the dashboard.</p>
   </div>
+  <button id="cookieSettingsLink" type="button">Cookie settings</button>
 
   <div class="card" id="adminPanel" style="display:none">
     <h2>Code Generator</h2>
@@ -166,6 +172,15 @@
   </div>
 </dialog>
 
+<dialog id="cookieConsentDialog" aria-labelledby="cookieConsentTitle" aria-describedby="cookieConsentDescription">
+  <h2 id="cookieConsentTitle">Cookie settings</h2>
+  <p id="cookieConsentDescription">Allow the optional trusted-device cookie to keep your Admin login remembered for 30 days. Choosing Reject leaves regular access-code login available and disables password-free Admin sign-in on this browser.</p>
+  <div class="cookie-actions">
+    <button id="rejectCookies" type="button">Reject</button>
+    <button id="acceptCookies" class="accept-cookies" type="button">Allow cookies</button>
+  </div>
+</dialog>
+
 <script src="/starfield.js" defer></script>
 <script>
 let role = "";
@@ -186,17 +201,58 @@ function getDeviceID() {
 }
 
 // --- Login / Dashboard ---
+const cookieConsentDialog = document.getElementById("cookieConsentDialog");
+let cookieConsentChoice = "unset";
+try {
+  cookieConsentChoice = localStorage.getItem("superstar-trusted-cookie-consent") ||
+    (localStorage.getItem("superstar-remember-admin-device") === "1" ? "allow" : "unset");
+} catch {
+  // Cookie consent remains available for the current page if browser storage is disabled.
+}
+
+function openCookieSettings() {
+  if (!cookieConsentDialog.open) cookieConsentDialog.showModal();
+}
+
+function saveCookieConsent(choice) {
+  cookieConsentChoice = choice;
+  try {
+    localStorage.setItem("superstar-trusted-cookie-consent", choice);
+    if (choice === "allow") localStorage.setItem("superstar-remember-admin-device", "1");
+    else localStorage.removeItem("superstar-remember-admin-device");
+  } catch {
+    // Consent remains active for this page even if it cannot be saved.
+  }
+}
+
+document.getElementById("cookieSettingsLink").addEventListener("click", openCookieSettings);
+document.getElementById("acceptCookies").addEventListener("click", () => {
+  saveCookieConsent("allow");
+  cookieConsentDialog.close();
+});
+document.getElementById("rejectCookies").addEventListener("click", async () => {
+  saveCookieConsent("reject");
+  try {
+    const response = await fetch("/session/trusted-device/revoke", {
+      method: "POST",
+      headers: { "X-Device-ID": getDeviceID() },
+      credentials: "same-origin"
+    });
+    if (!response.ok) throw new Error("Trusted-device cookie could not be revoked");
+  } catch (error) {
+    console.error("Could not revoke trusted-device cookie:", error);
+  }
+  cookieConsentDialog.close();
+});
+cookieConsentDialog.addEventListener("cancel", event => {
+  if (cookieConsentChoice === "unset") event.preventDefault();
+});
+if (cookieConsentChoice === "unset") openCookieSettings();
+
 document.getElementById("loginForm").addEventListener("submit", event => {
   event.preventDefault();
   login();
 });
-
-try {
-  document.getElementById("rememberDevice").checked =
-    localStorage.getItem("superstar-remember-admin-device") === "1";
-} catch {
-  // Remember-device preference is optional when browser storage is unavailable.
-}
 
 function showAuthenticatedDashboard(session, remembered = false) {
   role = session.role;
@@ -251,27 +307,18 @@ async function restoreTrustedAdminSession() {
   }
 }
 
-if (!restoreSession()) restoreTrustedAdminSession();
+if (!restoreSession() && cookieConsentChoice === "allow") restoreTrustedAdminSession();
 
 async function login() {
   const code = document.getElementById("codeInput").value;
   const deviceID = getDeviceID();
-  const rememberDevice = document.getElementById("rememberDevice").checked;
+  const rememberDevice = cookieConsentChoice === "allow";
   const res = await fetch("/login", {
     method:"POST", headers:{"Content-Type":"application/json"},
     body: JSON.stringify({code, deviceID, rememberDevice})
   });
   const data = await res.json();
   if(!data.ok) return alert(data.error);
-  try {
-    if (data.role === "admin" && rememberDevice) {
-      localStorage.setItem("superstar-remember-admin-device", "1");
-    } else {
-      localStorage.removeItem("superstar-remember-admin-device");
-    }
-  } catch {
-    // The current sign-in still works if browser storage is unavailable.
-  }
   const session = { role: data.role, sessionToken: data.sessionToken, adminToken: data.adminToken || "" };
   try {
     sessionStorage.setItem("superstar-session", JSON.stringify(session));
