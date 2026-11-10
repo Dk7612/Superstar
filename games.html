@@ -65,6 +65,8 @@
     .play-area { position:relative; width:min(100%,720px); margin:0 auto; background:#090f21; }
     #dropperCanvas,#skyCanvas { display:block; width:100%; height:auto; aspect-ratio:6/5; }
     .game-overlay { position:absolute; inset:0; display:grid; place-items:center; padding:24px; background:rgba(5,9,23,.44); backdrop-filter:blur(4px); }
+    #skyOverlay { pointer-events:none; }
+    #skyOverlay .overlay-card { pointer-events:auto; }
     .game-overlay[hidden] { display:none; }
     .overlay-card { width:min(390px,100%); padding:26px; border:1px solid rgba(190,205,255,.25); border-radius:16px; background:rgba(14,22,47,.94); text-align:center; box-shadow:0 18px 48px rgba(0,0,0,.38); }
     .overlay-kicker { color:var(--accent); font-size:11px; letter-spacing:.16em; font-weight:700; text-transform:uppercase; }
@@ -163,7 +165,7 @@
           <div class="sr-only" id="skyAnnouncement" aria-live="polite"></div>
         </div>
         <div class="touch-controls sky-touch-controls" aria-label="Skyfall movement controls"><button type="button" data-move="left" aria-label="Move left">←</button><button type="button" data-move="up" aria-label="Move up">↑</button><button type="button" data-move="down" aria-label="Move down">↓</button><button type="button" data-move="right" aria-label="Move right">→</button></div>
-        <div class="game-controls"><div class="control-hint"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrow keys to dodge · drag to look around · <kbd>Space</kbd> to pause</div><div class="game-control-buttons"><button type="button" data-fullscreen>Fullscreen</button><button type="button" class="reset-progress" id="resetSkyfall">Reset progress</button><button type="button" class="pause-button" id="skyPause" aria-label="Pause Skyfall 3D">Pause</button></div></div>
+        <div class="game-controls"><div class="control-hint"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows to steer · drag the 3D view to rotate · <kbd>Space</kbd> to pause</div><div class="game-control-buttons"><button type="button" data-fullscreen>Fullscreen</button><button type="button" class="reset-progress" id="resetSkyfall">Reset progress</button><button type="button" class="pause-button" id="skyPause" aria-label="Pause Skyfall 3D">Pause</button></div></div>
       </section>
     </section>
     <script>
@@ -286,6 +288,6 @@
       return { load, save, reset };
     })();
   </script>
-  <script src="/starfield.js" defer></script><script src="/dropper.js" defer></script><script src="/dropper3d.js" defer></script>
+  <script src="/starfield.js" defer></script><script src="/dropper.js" defer></script><script src="/physics3d.js" defer></script><script src="/dropper3d.js" defer></script>
 </body>
 </html>

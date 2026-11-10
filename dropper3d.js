@@ -2,6 +2,7 @@
   const canvas = document.getElementById("skyCanvas");
   if (!canvas) return;
   const gamePanel = document.getElementById("skyGame");
+  const Physics3D = window.SuperstarPhysics3D;
 
   const gl = canvas.getContext("webgl", { antialias: true, alpha: false });
   const $ = id => document.getElementById(id);
@@ -12,7 +13,15 @@
   const STORAGE_KEY = "superstar-skyfall-progress-v1";
   const keys = { left: false, right: false, up: false, down: false };
   let level = 1, unlocked = 1, stage, state = "ready", playerX = 0, playerY = 0, distance = 0, elapsed = 0, lastFrame = 0, lastHud = 0, cameraYaw = 0, cameraPitch = .18;
+  let physicsWorld, playerBody;
 
+  if (!Physics3D) {
+    $("skyOverlayKicker").textContent = "Physics engine unavailable";
+    $("skyOverlayTitle").textContent = "Skyfall could not start";
+    $("skyOverlayMessage").textContent = "Reload the page to load the 3D physics engine.";
+    $("skyAction").hidden = true;
+    return;
+  }
   if (!gl) {
     $("skyOverlayKicker").textContent = "3D rendering unavailable";
     $("skyOverlayTitle").textContent = "WebGL is not available";
@@ -190,6 +199,115 @@
     const finish = gates[gates.length - 1].distance + 27;
     return { gates, finish, speed: 8.5 * Math.pow(1.018, n - 1), steer: 7.2 };
   }
+  function addBoxCollider(position, size, userData = null) {
+    return physicsWorld.addBody({
+      type: "static",
+      shape: "box",
+      position,
+      halfExtents: { x: size.x / 2, y: size.y / 2, z: size.z / 2 },
+      friction: .7,
+      restitution: 0,
+      userData
+    });
+  }
+  function buildPhysicsWorld() {
+    physicsWorld = Physics3D.createWorld({
+      gravity: { x: 0, y: -18, z: 0 },
+      fixedTimeStep: 1 / 60,
+      maxSubSteps: 8,
+      solverIterations: 6
+    });
+
+    const wallHeight = stage.finish + 24;
+    const wallCenterY = -stage.finish / 2;
+    addBoxCollider(
+      { x: SHAFT.left, y: wallCenterY, z: 0 },
+      { x: .24, y: wallHeight, z: SHAFT.top - SHAFT.bottom },
+      { kind: "shaft-wall" }
+    );
+    addBoxCollider(
+      { x: SHAFT.right, y: wallCenterY, z: 0 },
+      { x: .24, y: wallHeight, z: SHAFT.top - SHAFT.bottom },
+      { kind: "shaft-wall" }
+    );
+    addBoxCollider(
+      { x: 0, y: wallCenterY, z: SHAFT.bottom },
+      { x: SHAFT.right - SHAFT.left, y: wallHeight, z: .24 },
+      { kind: "shaft-wall" }
+    );
+    addBoxCollider(
+      { x: 0, y: wallCenterY, z: SHAFT.top },
+      { x: SHAFT.right - SHAFT.left, y: wallHeight, z: .24 },
+      { kind: "shaft-wall" }
+    );
+
+    const opening = 1.55, deckY = 0, deckHeight = .42;
+    addBoxCollider(
+      { x: (SHAFT.left - opening) / 2, y: deckY, z: 0 },
+      { x: opening - SHAFT.left, y: deckHeight, z: SHAFT.top - SHAFT.bottom },
+      { kind: "start-platform" }
+    );
+    addBoxCollider(
+      { x: (SHAFT.right + opening) / 2, y: deckY, z: 0 },
+      { x: SHAFT.right - opening, y: deckHeight, z: SHAFT.top - SHAFT.bottom },
+      { kind: "start-platform" }
+    );
+    addBoxCollider(
+      { x: 0, y: deckY, z: (SHAFT.bottom - opening) / 2 },
+      { x: opening * 2, y: deckHeight, z: opening - SHAFT.bottom },
+      { kind: "start-platform" }
+    );
+    addBoxCollider(
+      { x: 0, y: deckY, z: (SHAFT.top + opening) / 2 },
+      { x: opening * 2, y: deckHeight, z: SHAFT.top - opening },
+      { kind: "start-platform" }
+    );
+
+    for (const gate of stage.gates) {
+      const half = gate.gap / 2, x1 = gate.centerX - half, x2 = gate.centerX + half;
+      const z1 = gate.centerY - half, z2 = gate.centerY + half;
+      const y = -gate.distance;
+      const obstacle = { kind: "obstacle", gate };
+      const leftWidth = x1 - SHAFT.left, rightWidth = SHAFT.right - x2;
+      if (leftWidth > .03) {
+        addBoxCollider({ x: (SHAFT.left + x1) / 2, y, z: 0 }, { x: leftWidth, y: .82, z: SHAFT.top - SHAFT.bottom }, obstacle);
+      }
+      if (rightWidth > .03) {
+        addBoxCollider({ x: (x2 + SHAFT.right) / 2, y, z: 0 }, { x: rightWidth, y: .82, z: SHAFT.top - SHAFT.bottom }, obstacle);
+      }
+      if (z1 > SHAFT.bottom) {
+        addBoxCollider({ x: (x1 + x2) / 2, y, z: (SHAFT.bottom + z1) / 2 }, { x: x2 - x1, y: .82, z: z1 - SHAFT.bottom }, obstacle);
+      }
+      if (z2 < SHAFT.top) {
+        addBoxCollider({ x: (x1 + x2) / 2, y, z: (z2 + SHAFT.top) / 2 }, { x: x2 - x1, y: .82, z: SHAFT.top - z2 }, obstacle);
+      }
+    }
+
+    playerBody = physicsWorld.addBody({
+      type: "dynamic",
+      shape: "box",
+      position: { x: 0, y: .95, z: 0 },
+      halfExtents: { x: .38, y: .72, z: .38 },
+      mass: 1,
+      friction: .65,
+      restitution: .04,
+      maxSpeed: stage.speed,
+      linearDamping: .04,
+      angularDamping: .8,
+      userData: { kind: "player" },
+      onCollision(other) {
+        if (other.userData?.kind === "obstacle") fail();
+      }
+    });
+    playerX = playerBody.position.x;
+    playerY = playerBody.position.z;
+    distance = 0;
+  }
+  function syncPlayerPosition() {
+    playerX = playerBody.position.x;
+    playerY = playerBody.position.z;
+    distance = Math.max(0, 1.4 - (playerBody.position.y + .45));
+  }
   function difficulty(n) { return n < 6 ? "First dive" : n < 16 ? "Winding tower" : n < 31 ? "Deep drop" : n < 46 ? "Expert diver" : "Skyfall legend"; }
   function renderLevels() {
     levelSelect.replaceChildren();
@@ -221,12 +339,13 @@
   }
   function loadLevel(n) {
     level = Math.max(1, Math.min(unlocked, n)); stage = createStage(level);
-    playerX = 0; playerY = 0; distance = 0; elapsed = 0; cameraYaw = 0; cameraPitch = .18; state = "ready";
-    show(`LEVEL ${String(level).padStart(2, "0")} · ${LEVELS}`, "Ready to jump?", "Dodge left, right, up and down through the square gaps. Miss one and you'll restart this level.", `Start level ${level}`);
+    elapsed = 0; cameraYaw = 0; cameraPitch = .32; state = "ready";
+    buildPhysicsWorld();
+    show(`LEVEL ${String(level).padStart(2, "0")} · ${LEVELS}`, "Ready to jump?", "You are on the starting platform. Drop through its opening, then dodge the neon gates. Drag the view to look around.", `Start level ${level}`);
     $("skyAnnouncement").textContent = `Skyfall level ${level} ready.`; updateHud();
   }
   function start() {
-    playerX = 0; playerY = 0; distance = 0; elapsed = 0; state = "playing"; overlay.hidden = true; updateHud();
+    elapsed = 0; buildPhysicsWorld(); state = "playing"; overlay.hidden = true; lastFrame = 0; updateHud();
   }
   function fail() {
     if (state !== "playing") return;
@@ -261,18 +380,11 @@
   function update(dt) {
     if (state !== "playing") return;
     elapsed += dt;
-    playerX += (Number(keys.right) - Number(keys.left)) * stage.steer * dt;
-    playerY += (Number(keys.up) - Number(keys.down)) * stage.steer * dt;
-    playerX = Math.max(SHAFT.left + .3, Math.min(SHAFT.right - .3, playerX));
-    playerY = Math.max(SHAFT.bottom + .3, Math.min(SHAFT.top - .3, playerY));
-    distance += stage.speed * dt;
-    for (const gate of stage.gates) {
-      if (!gate.passed && distance >= gate.distance) {
-        gate.passed = true;
-        const safeRadius = gate.gap / 2 - .3;
-        if (Math.abs(playerX - gate.centerX) > safeRadius || Math.abs(playerY - gate.centerY) > safeRadius) { fail(); break; }
-      }
-    }
+    playerBody.velocity.x = (Number(keys.right) - Number(keys.left)) * stage.steer;
+    playerBody.velocity.z = (Number(keys.down) - Number(keys.up)) * stage.steer;
+    physicsWorld.step(dt);
+    syncPlayerPosition();
+    if (state !== "playing") return;
     if (state === "playing" && distance >= stage.finish) complete();
     if (performance.now() - lastHud > 100) { updateHud(); lastHud = performance.now(); }
   }
@@ -319,6 +431,15 @@
       x, y, z, 1
     ]);
   }
+  function rotatedModelMatrix(x, y, z, sx, sy, sz, rotation) {
+    const cosine = Math.cos(rotation), sine = Math.sin(rotation);
+    return new Float32Array([
+      cosine * sx, sine * sx, 0, 0,
+      -sine * sy, cosine * sy, 0, 0,
+      0, 0, sz, 0,
+      x, y, z, 1
+    ]);
+  }
   function resizeRenderer() {
     const rect = canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return false;
@@ -344,8 +465,15 @@
     setColor(color);
     gl.drawArrays(gl.TRIANGLES, 0, mesh.count);
   }
-  function drawBox(x, y, z, sx, sy, sz, color) {
-    drawMesh(cubeMesh, x, y, z, sx, sy, sz, color);
+  function drawBox(x, y, z, sx, sy, sz, color, rotation = 0) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, cubeMesh.buffer);
+    gl.enableVertexAttribArray(positionLocation);
+    gl.enableVertexAttribArray(normalLocation);
+    gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 24, 0);
+    gl.vertexAttribPointer(normalLocation, 3, gl.FLOAT, false, 24, 12);
+    gl.uniformMatrix4fv(modelLocation, false, rotatedModelMatrix(x, y, z, sx, sy, sz, rotation));
+    setColor(color);
+    gl.drawArrays(gl.TRIANGLES, 0, cubeMesh.count);
   }
   function drawTunnel() {
     const centerY = -distance - 48;
@@ -385,29 +513,55 @@
     drawBox(x1, y + .48, (z1 + z2) / 2, .08, .08, z2 - z1, glow);
     drawBox(x2, y + .48, (z1 + z2) / 2, .08, .08, z2 - z1, glow);
   }
+  function drawStartPlatform() {
+    if (distance > 24) return;
+    const y = 0, opening = 1.55, deck = [.24, .33, .57], edge = [.25, .92, 1];
+    drawBox((SHAFT.left - opening) / 2, y, 0, opening - SHAFT.left, .42, SHAFT.top - SHAFT.bottom, deck);
+    drawBox((SHAFT.right + opening) / 2, y, 0, SHAFT.right - opening, .42, SHAFT.top - SHAFT.bottom, deck);
+    drawBox(0, y, (SHAFT.bottom - opening) / 2, opening * 2, .42, opening - SHAFT.bottom, deck);
+    drawBox(0, y, (SHAFT.top + opening) / 2, opening * 2, .42, SHAFT.top - opening, deck);
+    drawBox(0, y + .24, -opening, opening * 2, .08, .1, edge);
+    drawBox(0, y + .24, opening, opening * 2, .08, .1, edge);
+    drawBox(-opening, y + .24, 0, .1, .08, opening * 2, edge);
+    drawBox(opening, y + .24, 0, .1, .08, opening * 2, edge);
+    for (const x of [SHAFT.left + .12, SHAFT.right - .12]) {
+      for (const z of [SHAFT.bottom + .12, SHAFT.top - .12]) {
+        drawBox(x, y - 1.3, z, .14, 2.6, .14, [.18, .27, .48]);
+      }
+    }
+  }
   function drawPlayer() {
-    const y = -distance;
-    drawMesh(sphereMesh, playerX, y + .05, playerY, .38, .38, .38, [.62, .94, 1]);
-    drawBox(playerX, y - .46, playerY, .62, .9, .45, [.18, .78, .94]);
-    drawBox(playerX - .43, y - .43, playerY, .24, .62, .25, [.12, .53, .78]);
-    drawBox(playerX + .43, y - .43, playerY, .24, .62, .25, [.12, .53, .78]);
-    drawBox(playerX - .18, y - .96, playerY, .2, .4, .24, [.18, .35, .63]);
-    drawBox(playerX + .18, y - .96, playerY, .2, .4, .24, [.18, .35, .63]);
+    const fall = state === "playing" ? elapsed : 0;
+    const y = playerBody.position.y + .45, swing = Math.sin(fall * 13) * .55, lean = state === "playing" ? Math.sin(fall * 5) * .08 : 0;
+    const skin = [.72, .89, 1], suit = [.12, .68, .88], darkSuit = [.12, .3, .56];
+    drawMesh(sphereMesh, playerX, y + .23, playerY, .34, .36, .34, skin);
+    drawBox(playerX, y - .37, playerY, .56, .76, .4, suit, lean);
+    drawBox(playerX - .42, y - .3 + swing * .2, playerY, .22, .62, .23, skin, -.5 - swing);
+    drawBox(playerX + .42, y - .3 - swing * .2, playerY, .22, .62, .23, skin, .5 + swing);
+    drawBox(playerX - .17, y - .91, playerY, .2, .54, .23, darkSuit, swing);
+    drawBox(playerX + .17, y - .91, playerY, .2, .54, .23, darkSuit, -swing);
+    drawBox(playerX - .17, y - 1.19, playerY + .08, .24, .18, .35, suit, swing * .7);
+    drawBox(playerX + .17, y - 1.19, playerY + .08, .24, .18, .35, suit, -swing * .7);
   }
   function draw() {
     if (gamePanel.hidden || !resizeRenderer()) return;
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     gl.useProgram(program);
-    const lookDistance = 19, lateralLook = Math.sin(cameraPitch) * lookDistance;
-    const target = [
-      playerX + Math.sin(cameraYaw) * lateralLook,
-      -distance - Math.cos(cameraPitch) * lookDistance,
-      playerY - Math.cos(cameraYaw) * lateralLook
+    const target = [playerX, playerBody.position.y + .08, playerY];
+    const orbit = 8.5, horizontalOrbit = Math.sin(cameraPitch) * orbit;
+    const desiredEye = [
+      target[0] + Math.sin(cameraYaw) * horizontalOrbit,
+      target[1] + Math.cos(cameraPitch) * orbit,
+      target[2] + Math.cos(cameraYaw) * horizontalOrbit
     ];
+    const cameraOffset = { x: desiredEye[0] - target[0], y: desiredEye[1] - target[1], z: desiredEye[2] - target[2] };
+    const cameraRay = physicsWorld.raycast(Physics3D.vector(target[0], target[1], target[2]), cameraOffset, orbit, body => body !== playerBody);
+    const cameraDistance = cameraRay ? Math.max(.15, cameraRay.distance - .24) : orbit;
+    const cameraScale = cameraDistance / orbit;
     const eye = [
-      playerX - Math.sin(cameraYaw) * 1.8,
-      -distance + 2.4,
-      playerY + Math.cos(cameraYaw) * 1.8
+      target[0] + cameraOffset.x * cameraScale,
+      target[1] + cameraOffset.y * cameraScale,
+      target[2] + cameraOffset.z * cameraScale
     ];
     const viewProjection = multiplyMatrices(
       perspective(Math.PI / 3, canvas.width / canvas.height, .1, 240),
@@ -415,6 +569,7 @@
     );
     gl.uniformMatrix4fv(viewProjectionLocation, false, viewProjection);
     drawTunnel();
+    drawStartPlatform();
     for (const gate of stage.gates) {
       const relativeDepth = gate.distance - distance;
       if (relativeDepth > -3 && relativeDepth < 105) drawGate(gate);
@@ -477,14 +632,16 @@
   });
   let dragPointer = null, dragX = 0, dragY = 0;
   canvas.addEventListener("pointerdown", event => {
-    if (gamePanel.hidden || event.target !== canvas || state !== "playing") return;
+    if (gamePanel.hidden || state === "paused" || state === "dead" || state === "complete" || state === "won") return;
+    if (event.button !== 0 && event.pointerType === "mouse") return;
+    event.preventDefault();
     dragPointer = event.pointerId; dragX = event.clientX; dragY = event.clientY;
     canvas.setPointerCapture(event.pointerId);
   });
   canvas.addEventListener("pointermove", event => {
     if (event.pointerId !== dragPointer) return;
-    cameraYaw -= (event.clientX - dragX) * .008;
-    cameraPitch = Math.max(-.4, Math.min(1.05, cameraPitch + (event.clientY - dragY) * .006));
+    cameraYaw -= (event.clientX - dragX) * .012;
+    cameraPitch = Math.max(.08, Math.min(1.15, cameraPitch + (event.clientY - dragY) * .01));
     dragX = event.clientX; dragY = event.clientY;
   });
   for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) {

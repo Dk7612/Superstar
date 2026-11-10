@@ -13,6 +13,7 @@ app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "index.html")));
 app.get("/games", (_req, res) => res.sendFile(path.join(__dirname, "games.html")));
 app.get("/starfield.js", (_req, res) => res.sendFile(path.join(__dirname, "starfield.js")));
 app.get("/dropper.js", (_req, res) => res.sendFile(path.join(__dirname, "dropper.js")));
+app.get("/physics3d.js", (_req, res) => res.sendFile(path.join(__dirname, "physics3d.js")));
 app.get("/dropper3d.js", (_req, res) => res.sendFile(path.join(__dirname, "dropper3d.js")));
 app.get("/favicon.png", (_req, res) => res.sendFile(path.join(__dirname, "favicon.png")));
 

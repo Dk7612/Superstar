@@ -20,6 +20,20 @@ Set `ADMIN_CODE` in the hosting service before starting the app. Existing deploy
 
 The Games page shows a preview gallery for The Drop and Skyfall 3D; both games have 50 levels with progressively harder obstacle courses. Skyfall 3D uses WebGL for a vertical 3D shaft, keyboard/touch steering, and mouse or touch dragging to look around. Each game can be played in fullscreen on browsers that support the Fullscreen API.
 
+Skyfall uses `physics3d.js`, a small dependency-free, Roblox-inspired rigid-body engine (not a port of Roblox's proprietary engine). It supports fixed-step simulation, gravity, forces and impulses, dynamic/static/kinematic bodies, oriented boxes, spheres, infinite planes, restitution, friction, angular motion, collision groups, sensors, collision callbacks, and raycasts. Skyfall's platform, shaft, gates, and player use these colliders, and the camera raycasts to avoid passing through them.
+
+The browser exposes the API as `window.SuperstarPhysics3D`; Node tests can import it with `require("./physics3d")`. A minimal use looks like:
+
+```js
+const Physics3D = window.SuperstarPhysics3D;
+const world = Physics3D.createWorld({ gravity: { x: 0, y: -18, z: 0 } });
+world.addBody({ type: "static", shape: "plane", position: { x: 0, y: 0, z: 0 } });
+const ball = world.addBody({ shape: "sphere", radius: 0.5, position: { x: 0, y: 5, z: 0 } });
+world.step(frameDeltaSeconds);
+```
+
+Use a regular frame loop and pass its elapsed seconds to `world.step`; the engine applies fixed substeps internally. Current colliders are primitive shapes rather than triangle meshes, and the engine does not yet include joints or a character-controller system. Verify the engine with `node --test test/physics3d.test.js`.
+
 Game progress is synchronized to the login code after sign-in. Existing browser progress is merged into the account save the first time each game loads, preserving the highest unlocked level and best time for each level. Account saves use the same persistent disk as other service state.
 
 Admins can assign or change a display name for any login code in the user list. Players can reset each game's account progress separately with that game's Reset progress button.

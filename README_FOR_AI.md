@@ -40,6 +40,8 @@ The following captures the known requests and decisions from the project history
 5. **Skyfall 3D and Games page**
    - Skyfall should be a real 3D game, not a 2D perspective effect, and the fall must travel down rather than forward.
    - Skyfall uses native WebGL (no external game assets or rendering dependency), keyboard/touch steering, and drag-to-look-around controls. It also has 50 progressively harder levels.
+   - Skyfall's reusable `physics3d.js` engine is dependency-free and Roblox-inspired: it uses fixed-step gravity, rigid bodies, box/sphere/plane colliders, rotation, collision response, collision groups, sensors, and raycasts. It is an original small engine, not a port or replica of Roblox's proprietary engine.
+   - Skyfall builds its start platform, shaft walls, gate obstacles, and player from those physics primitives; its orbit camera raycasts against colliders to stay on the near side of walls.
    - Present the real games together on one Games page as a gallery with preview art and each game's title beneath it. Selecting a tile opens its game, and players can return to the gallery.
    - Provide a fullscreen option for every game.
    - Do not add fake game tiles or external assets/dependencies without asking.
@@ -72,6 +74,8 @@ The following captures the known requests and decisions from the project history
 - `games.html`: game gallery, game UI, account-save client, fullscreen controls, and shared star settings.
 - `dropper.js`: The Drop gameplay and level progression.
 - `dropper3d.js`: Skyfall's WebGL renderer and gameplay.
+- `physics3d.js`: reusable fixed-step 3D rigid-body physics shared by Skyfall and future browser games. It exposes `window.SuperstarPhysics3D` and a CommonJS export for tests.
+- `test/physics3d.test.js`: built-in Node tests for gravity, collisions, rotation, sensors, masks, and raycasts.
 - `starfield.js`: shared starfield behavior and settings.
 - `data/service-data.json`: default server data location when `DATA_DIR` is not set. Do not commit live state or secrets.
 - `.github/workflows/render-deploy.yml`: Render deploy-hook workflow for pushes to `main`.
@@ -80,6 +84,7 @@ The following captures the known requests and decisions from the project history
 
 - Install dependencies only if needed; the project uses Express and existing dependencies are recorded in `package.json`/`package-lock.json`.
 - Run `node --check server.js`, `node --check dropper.js`, and `node --check dropper3d.js` after JavaScript changes. For inline page scripts, parse/exercise the embedded scripts or verify the affected flow in a browser.
+- Run `node --check physics3d.js` and `node --test test/physics3d.test.js` to validate the reusable physics engine.
 - Use an isolated temporary `DATA_DIR` for local server tests so the user's or repository's persistent data is not altered.
 - For session-persistence changes, test login, confirm only a token hash is stored, restart the server using the same `DATA_DIR`, and verify the same session still authorizes Admin and game-save endpoints.
 - For game changes, verify both games, all 50 levels/progression surfaces, gallery selection/back behavior, touch/keyboard controls, fullscreen where supported, and shared star settings.
