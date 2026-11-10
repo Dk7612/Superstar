@@ -63,6 +63,13 @@
     @media(max-width:640px) { header { padding:12px 4%; } main { width:94%; margin-top:20px; } .intro { align-items:flex-start; flex-direction:column; } .game-topbar { grid-template-columns:1fr 1.4fr; gap:12px; padding:12px 14px; } .time-readout { display:none; } .game-controls { padding:12px 14px; } .control-hint { font-size:11px; } .touch-controls { display:flex; } }
     @media(prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto !important; transition-duration:.01ms !important; } .starfield { opacity:.65; } }
   </style>
+  <script>
+    try {
+      if (sessionStorage.getItem("superstar-authenticated") !== "1") window.location.replace("/");
+    } catch {
+      window.location.replace("/");
+    }
+  </script>
 </head>
 <body>
   <canvas class="starfield" aria-hidden="true"></canvas>
