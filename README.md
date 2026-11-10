@@ -14,8 +14,8 @@ NOTE 3.0: if you ask me to make changes to the proxy or something and i say yes 
 
 ## Persistent service state
 
-The service stores login history, generated login codes, device locks, and device/IP bans in `data/service-data.json`. Set the `DATA_DIR` environment variable to a persistent disk path to keep this state across restarts and redeploys. On Render, attach a persistent disk to the web service and set `DATA_DIR` to its mount path (for example, `/var/data`). Without a persistent disk, Render may erase data stored on the service filesystem when it restarts or is redeployed. The `SUPERADMIN_CODE` and `USER_CODE` values remain configured through environment variables.
+The service stores login history, generated login codes, device locks, and device/IP bans in `data/service-data.json`. Set the `DATA_DIR` environment variable to a persistent disk path to keep this state across restarts and redeploys. On Render, attach a persistent disk to the web service and set `DATA_DIR` to its mount path (for example, `/var/data`). Without a persistent disk, Render may erase data stored on the service filesystem when it restarts or is redeployed. The admin login code is configured through `ADMIN_CODE` (or the legacy `SUPERADMIN_CODE` variable); regular logins use `USER_CODE`.
 
 ## Login code configuration
 
-Set distinct `SUPERADMIN_CODE` and `USER_CODE` environment variables in the hosting service before starting the app. Do not put their values in source files or commit messages.
+Set distinct `ADMIN_CODE` and `USER_CODE` environment variables in the hosting service before starting the app. Existing deployments can keep using `SUPERADMIN_CODE`; it remains supported as a fallback. Do not put code values in source files or commit messages. Generated accounts can have the `user` or `guest` role; only the configured admin account can manage users, login history, and bans. Previously generated admin-role accounts are downgraded to user access when persistent state is loaded.
