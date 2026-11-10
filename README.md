@@ -12,9 +12,9 @@ NOTE: this is a work in progress and if it is the first time it runs in 10 mins 
 NOTE 2.0: if you share your code with anyone i will block ur ip address and u will not be able to use this again and i wont give whatever you gave me back, and trust me i will know if you gave anyone the password
 NOTE 3.0: if you ask me to make changes to the proxy or something and i say yes dont expect it to be done in a day or somthing, i have a life and it takes a while to code this 
 
-## Persistent login history and bans
+## Persistent service state
 
-The service stores the latest 500 successful logins and device/IP bans in `data/service-data.json`. Set the `DATA_DIR` environment variable to the path of a persistent disk to keep this data across restarts. On Render, attach a persistent disk to the web service and set `DATA_DIR` to its mount path (for example, `/var/data`). Without a persistent disk, Render may erase the data when the service restarts or is redeployed.
+The service stores login history, generated login codes, device locks, and device/IP bans in `data/service-data.json`. Set the `DATA_DIR` environment variable to a persistent disk path to keep this state across restarts and redeploys. On Render, attach a persistent disk to the web service and set `DATA_DIR` to its mount path (for example, `/var/data`). Without a persistent disk, Render may erase data stored on the service filesystem when it restarts or is redeployed. The `SUPERADMIN_CODE` and `USER_CODE` values remain configured through environment variables.
 
 ## Login code configuration
 
