@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Games | Superstar</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
   <style>
     :root { color-scheme:dark; --panel:rgba(17,26,52,.9); --muted:#aebbdc; --line:rgba(164,184,255,.18); --accent:#9ce7ff; }
     :root[data-theme="light"] { color-scheme:light; --panel:rgba(255,255,255,.93); --muted:#53617e; --line:#d6def0; --accent:#4368ca; }
@@ -13,6 +14,8 @@
     header,main { position:relative; z-index:1; }
     header { z-index:10; display:flex; align-items:center; gap:16px; padding:16px 5%; background:rgba(11,17,38,.78); border-bottom:1px solid var(--line); backdrop-filter:blur(8px); }
     h1 { margin:0; font-size:24px; } a { color:inherit; }
+    .brand { display:inline-flex; align-items:center; gap:10px; color:inherit; font-size:20px; font-weight:700; text-decoration:none; white-space:nowrap; }
+    .brand img { display:block; width:42px; height:42px; border-radius:11px; object-fit:cover; }
     button,select { font:inherit; }
     button { background:#27365f; color:#f5f7ff; padding:9px 15px; border:1px solid rgba(190,205,255,.2); border-radius:8px; cursor:pointer; transition:background .16s,transform .16s; }
     button:hover { background:#384a7c; transform:translateY(-1px); }
@@ -84,7 +87,7 @@
 <body>
   <canvas class="starfield" aria-hidden="true"></canvas>
   <header>
-    <a href="/" aria-label="Back to dashboard"><button type="button">Back</button></a><h1>Games</h1>
+    <a class="brand" href="/" aria-label="Superstar home"><img src="/favicon.png" alt=""><span>Superstar</span></a><h1>Games</h1>
     <details class="star-settings"><summary>Star settings</summary><div class="settings-menu">
       <label>Direction<select id="starDirection"><option value="down-right">Down-right</option><option value="down-left">Down-left</option><option value="up-right">Up-right</option><option value="up-left">Up-left</option><option value="down">Down</option><option value="up">Up</option><option value="right">Right</option><option value="left" selected>Left (right to left)</option></select></label>
       <label>Speed<select id="starSpeed"><option value="slow">Slow</option><option value="normal">Normal</option><option value="fast">Fast</option></select></label>
