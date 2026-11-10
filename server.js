@@ -237,6 +237,33 @@ function issueSessionTokens(code) {
   return response;
 }
 
+function rememberTrustedAdminDevice(req, res, deviceID) {
+  const trustedToken = crypto.randomBytes(32).toString("hex");
+  const previousTrustedDevices = trustedAdminDevices.slice();
+  const now = Date.now();
+  const retainedDevices = trustedAdminDevices
+    .filter(device => device.deviceID !== deviceID && device.expiresAt > now)
+    .slice(-(MAX_TRUSTED_ADMIN_DEVICES - 1));
+  trustedAdminDevices.splice(0, trustedAdminDevices.length, ...retainedDevices, {
+    tokenHash: hashTrustedToken(trustedToken),
+    deviceID,
+    code: adminCode,
+    expiresAt: now + TRUSTED_ADMIN_MAX_AGE
+  });
+  try {
+    savePersistentState();
+  } catch (error) {
+    trustedAdminDevices.splice(0, trustedAdminDevices.length, ...previousTrustedDevices);
+    console.error("Could not remember trusted admin device:", error);
+    return false;
+  }
+  res.cookie(TRUSTED_ADMIN_COOKIE, trustedToken, {
+    ...trustedAdminCookieOptions(req),
+    maxAge: TRUSTED_ADMIN_MAX_AGE
+  });
+  return true;
+}
+
 function revokeTrustedAdminCookie(req, res) {
   const token = readCookie(req, TRUSTED_ADMIN_COOKIE);
   if (token) {
@@ -258,6 +285,21 @@ function revokeTrustedAdminCookie(req, res) {
 }
 
 app.get("/health", (_req, res) => {
+  res.json({ ok: true });
+});
+
+app.post("/session/trusted-device/enroll", requireAdmin, (req, res) => {
+  const deviceID = req.get("x-device-id") || "";
+  const ip = normalizeIp(req.ip);
+  if (!deviceID || deviceID.length > 200 ||
+      users[adminCode].lockedDevice !== deviceID ||
+      bannedDevices.has(deviceID) || bannedIps.has(ip)) {
+    return res.status(403).json({ ok: false, error: "Could not trust this device" });
+  }
+  if (!rememberTrustedAdminDevice(req, res, deviceID)) {
+    return res.status(500).json({ ok: false, error: "Could not remember this device" });
+  }
+  res.set("Cache-Control", "no-store");
   res.json({ ok: true });
 });
 
@@ -422,29 +464,9 @@ app.post("/login", (req, res) => {
   }
 
   if (user.role === "admin" && body.rememberDevice === true) {
-    const trustedToken = crypto.randomBytes(32).toString("hex");
-    const previousTrustedDevices = trustedAdminDevices.slice();
-    const now = Date.now();
-    const retainedDevices = trustedAdminDevices
-      .filter(device => device.deviceID !== deviceID && device.expiresAt > now)
-      .slice(-(MAX_TRUSTED_ADMIN_DEVICES - 1));
-    trustedAdminDevices.splice(0, trustedAdminDevices.length, ...retainedDevices, {
-      tokenHash: hashTrustedToken(trustedToken),
-      deviceID,
-      code: adminCode,
-      expiresAt: now + TRUSTED_ADMIN_MAX_AGE
-    });
-    try {
-      savePersistentState();
-    } catch (error) {
-      trustedAdminDevices.splice(0, trustedAdminDevices.length, ...previousTrustedDevices);
-      console.error("Could not remember trusted admin device:", error);
+    if (!rememberTrustedAdminDevice(req, res, deviceID)) {
       return res.status(500).json({ ok: false, error: "Could not remember this device" });
     }
-    res.cookie(TRUSTED_ADMIN_COOKIE, trustedToken, {
-      ...trustedAdminCookieOptions(req),
-      maxAge: TRUSTED_ADMIN_MAX_AGE
-    });
   } else if (readCookie(req, TRUSTED_ADMIN_COOKIE) && !revokeTrustedAdminCookie(req, res)) {
     return res.status(500).json({ ok: false, error: "Could not revoke trusted admin device" });
   }

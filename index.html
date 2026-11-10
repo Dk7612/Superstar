@@ -67,14 +67,18 @@
     body.logged-out #loginForm button { margin:0; padding:8px 14px; background:#f3f3f3; color:#111; border:1px solid #bdbdbd; border-radius:4px; }
     body.logged-out #loginForm button:hover { background:#e9e9e9; }
     body.logged-out .notice { color:#666; font-size:12px; line-height:1.5; }
-    #cookieConsentDialog { width:min(440px,calc(100% - 32px)); padding:26px; border:1px solid #cbd5eb; border-radius:14px; color:#202945; background:#fff; box-shadow:0 24px 80px rgba(0,0,0,.28); }
-    #cookieConsentDialog::backdrop { background:rgba(9,16,36,.58); }
+    #cookieConsentDialog { position:fixed; z-index:1000; right:auto; bottom:20px; left:20px; width:min(440px,calc(100vw - 40px)); margin:0; padding:24px; border:1px solid #cbd5eb; border-radius:14px; color:#202945; background:#fff; box-shadow:0 18px 56px rgba(0,0,0,.32); }
+    #cookieConsentDialog[hidden] { display:none; }
+    #cookieConsentDialog.cookie-consent-enter { animation:cookie-consent-slide-in .38s cubic-bezier(.2,.8,.2,1) both; }
+    @keyframes cookie-consent-slide-in { from { opacity:0; transform:translate(-12px,calc(100% + 24px)); } to { opacity:1; transform:translate(0,0); } }
+    @media (prefers-reduced-motion: reduce) { #cookieConsentDialog.cookie-consent-enter { animation:none; } }
     #cookieConsentDialog h2 { margin:0 0 10px; font-size:22px; }
     #cookieConsentDialog p { margin:0; color:#53617e; line-height:1.55; }
     #cookieConsentDialog .cookie-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:22px; }
     #cookieConsentDialog button { margin:0; padding:9px 16px; }
     #cookieConsentDialog button.accept-cookies { color:#fff; background:#536bc3; border-color:#536bc3; }
     #cookieSettingsLink { display:inline-block; margin-top:12px; padding:0; border:0; background:none; color:#536bc3; text-decoration:underline; font-size:12px; cursor:pointer; }
+    #cookieSettingsLink[hidden] { display:none; }
     #welcomePanel { display:none; }
     @media (prefers-reduced-motion: reduce) { .starfield { opacity:.65; } }
   </style>
@@ -91,25 +95,25 @@
         <label>Direction
           <select id="starDirection">
             <option value="down-right">Down-right</option>
-            <option value="down-left">Down-left</option>
+            <option value="down-left" selected>Down-left</option>
             <option value="up-right">Up-right</option>
             <option value="up-left">Up-left</option>
             <option value="down">Down</option>
             <option value="up">Up</option>
             <option value="right">Right</option>
-            <option value="left" selected>Left (right to left)</option>
+            <option value="left">Left (right to left)</option>
           </select>
         </label>
         <label>Speed
           <select id="starSpeed">
             <option value="slow">Slow</option>
             <option value="normal">Normal</option>
-            <option value="fast">Fast</option>
+            <option value="fast" selected>Fast</option>
           </select>
         </label>
         <label>Theme
           <select id="themeMode">
-            <option value="dark">Dark</option>
+            <option value="dark" selected>Dark</option>
             <option value="light">Light</option>
           </select>
         </label>
@@ -134,7 +138,7 @@
     <h2>You're logged in</h2>
     <p class="notice" id="welcomeMessage">Welcome to the dashboard.</p>
   </div>
-  <button id="cookieSettingsLink" type="button">Cookie settings</button>
+  <button id="cookieSettingsLink" type="button" hidden>Cookie settings</button>
 
   <div class="card" id="adminPanel" style="display:none">
     <h2>Code Generator</h2>
@@ -177,14 +181,14 @@
   </div>
 </dialog>
 
-<dialog id="cookieConsentDialog" aria-labelledby="cookieConsentTitle" aria-describedby="cookieConsentDescription">
+<aside id="cookieConsentDialog" role="dialog" aria-labelledby="cookieConsentTitle" aria-describedby="cookieConsentDescription" hidden>
   <h2 id="cookieConsentTitle">Cookie settings</h2>
   <p id="cookieConsentDescription">Allow the optional trusted-device cookie to keep your Admin login remembered for 30 days. Choosing Reject leaves regular access-code login available and disables password-free Admin sign-in on this browser.</p>
   <div class="cookie-actions">
     <button id="rejectCookies" type="button">Reject</button>
     <button id="acceptCookies" class="accept-cookies" type="button">Allow cookies</button>
   </div>
-</dialog>
+</aside>
 
 <script src="/starfield.js" defer></script>
 <script>
@@ -216,7 +220,16 @@ try {
 }
 
 function openCookieSettings() {
-  if (!cookieConsentDialog.open) cookieConsentDialog.showModal();
+  if (role !== "admin") return;
+  cookieConsentDialog.hidden = false;
+  cookieConsentDialog.classList.remove("cookie-consent-enter");
+  void cookieConsentDialog.offsetWidth;
+  cookieConsentDialog.classList.add("cookie-consent-enter");
+}
+
+function closeCookieSettings() {
+  cookieConsentDialog.classList.remove("cookie-consent-enter");
+  cookieConsentDialog.hidden = true;
 }
 
 function saveCookieConsent(choice) {
@@ -231,12 +244,29 @@ function saveCookieConsent(choice) {
 }
 
 document.getElementById("cookieSettingsLink").addEventListener("click", openCookieSettings);
-document.getElementById("acceptCookies").addEventListener("click", () => {
+document.getElementById("acceptCookies").addEventListener("click", async () => {
+  const button = document.getElementById("acceptCookies");
+  button.disabled = true;
+  try {
+    const response = await fetch("/session/trusted-device/enroll", {
+      method: "POST",
+      headers: { ...adminHeaders(), "X-Device-ID": getDeviceID() },
+      credentials: "same-origin"
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || "Could not remember this device");
+  } catch (error) {
+    alert(error.message);
+    return;
+  } finally {
+    button.disabled = false;
+  }
   saveCookieConsent("allow");
-  cookieConsentDialog.close();
+  closeCookieSettings();
 });
 document.getElementById("rejectCookies").addEventListener("click", async () => {
-  saveCookieConsent("reject");
+  const button = document.getElementById("rejectCookies");
+  button.disabled = true;
   try {
     const response = await fetch("/session/trusted-device/revoke", {
       method: "POST",
@@ -245,14 +275,14 @@ document.getElementById("rejectCookies").addEventListener("click", async () => {
     });
     if (!response.ok) throw new Error("Trusted-device cookie could not be revoked");
   } catch (error) {
-    console.error("Could not revoke trusted-device cookie:", error);
+    alert(error.message);
+    return;
+  } finally {
+    button.disabled = false;
   }
-  cookieConsentDialog.close();
+  saveCookieConsent("reject");
+  closeCookieSettings();
 });
-cookieConsentDialog.addEventListener("cancel", event => {
-  if (cookieConsentChoice === "unset") event.preventDefault();
-});
-if (cookieConsentChoice === "unset") openCookieSettings();
 
 document.getElementById("loginForm").addEventListener("submit", event => {
   event.preventDefault();
@@ -274,7 +304,13 @@ function showAuthenticatedDashboard(session, remembered = false) {
   document.getElementById("welcomeMessage").textContent = remembered
     ? "Signed in as admin on this remembered device. Enjoy the stars."
     : `Signed in as ${role}. Enjoy the stars.`;
-  if (role === "admin") showAdminPanel();
+  if (role === "admin") {
+    document.getElementById("cookieSettingsLink").hidden = false;
+    showAdminPanel();
+    if (cookieConsentChoice === "unset") openCookieSettings();
+  } else {
+    document.getElementById("cookieSettingsLink").hidden = true;
+  }
 }
 
 function restoreSession() {

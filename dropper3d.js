@@ -3,17 +3,130 @@
   if (!canvas) return;
   const gamePanel = document.getElementById("skyGame");
 
-  const context = canvas.getContext("2d");
+  const gl = canvas.getContext("webgl", { antialias: true, alpha: false });
   const $ = id => document.getElementById(id);
   const levelSelect = $("skyLevelSelect");
   const overlay = $("skyOverlay");
-  const WIDTH = canvas.width, HEIGHT = canvas.height, LEVELS = 50;
+  const LEVELS = 50;
   const SHAFT = { left: -4.7, right: 4.7, bottom: -3.25, top: 3.25 };
-  const CAMERA_DISTANCE = 10, FOCAL_LENGTH = 760, HORIZON = HEIGHT * .34, CAMERA_Y = 2;
   const STORAGE_KEY = "superstar-skyfall-progress-v1";
   const keys = { left: false, right: false, up: false, down: false };
-  const stars = Array.from({ length: 60 }, (_, i) => ({ x: (i * 197 + 31) % WIDTH, y: (i * 281 + 17) % HEIGHT, size: i % 6 === 0 ? 2 : 1 }));
-  let level = 1, unlocked = 1, stage, state = "ready", playerX = 0, playerY = 0, distance = 0, elapsed = 0, lastFrame = 0, lastHud = 0, fallRotation = 0;
+  let level = 1, unlocked = 1, stage, state = "ready", playerX = 0, playerY = 0, distance = 0, elapsed = 0, lastFrame = 0, lastHud = 0, cameraYaw = 0, cameraPitch = .18;
+
+  if (!gl) {
+    $("skyOverlayKicker").textContent = "3D rendering unavailable";
+    $("skyOverlayTitle").textContent = "WebGL is not available";
+    $("skyOverlayMessage").textContent = "Enable hardware acceleration or use a browser that supports WebGL to play Skyfall 3D.";
+    $("skyAction").hidden = true;
+    return;
+  }
+
+  canvas.tabIndex = 0;
+  canvas.style.touchAction = "none";
+  const vertexShaderSource = `
+    attribute vec3 aPosition;
+    attribute vec3 aNormal;
+    uniform mat4 uViewProjection;
+    uniform mat4 uModel;
+    varying vec3 vNormal;
+    void main() {
+      vNormal = mat3(uModel) * aNormal;
+      gl_Position = uViewProjection * uModel * vec4(aPosition, 1.0);
+    }
+  `;
+  const fragmentShaderSource = `
+    precision mediump float;
+    uniform vec4 uColor;
+    varying vec3 vNormal;
+    void main() {
+      vec3 normal = normalize(vNormal);
+      float light = 0.48 + 0.52 * max(dot(normal, normalize(vec3(-0.35, 0.8, 0.45))), 0.0);
+      gl_FragColor = vec4(uColor.rgb * light, uColor.a);
+    }
+  `;
+  function compileShader(type, source) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      const error = gl.getShaderInfoLog(shader);
+      gl.deleteShader(shader);
+      throw new Error(`Could not compile Skyfall 3D shader: ${error}`);
+    }
+    return shader;
+  }
+  function createProgram() {
+    const program = gl.createProgram();
+    gl.attachShader(program, compileShader(gl.VERTEX_SHADER, vertexShaderSource));
+    gl.attachShader(program, compileShader(gl.FRAGMENT_SHADER, fragmentShaderSource));
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      throw new Error(`Could not link Skyfall 3D renderer: ${gl.getProgramInfoLog(program)}`);
+    }
+    return program;
+  }
+  function createMesh(vertices) {
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+    return { buffer, count: vertices.length / 6 };
+  }
+  function createCubeMesh() {
+    const faces = [
+      [[0, 0, 1], [[-1, -1, 1], [1, -1, 1], [1, 1, 1], [-1, 1, 1]]],
+      [[0, 0, -1], [[1, -1, -1], [-1, -1, -1], [-1, 1, -1], [1, 1, -1]]],
+      [[1, 0, 0], [[1, -1, 1], [1, -1, -1], [1, 1, -1], [1, 1, 1]]],
+      [[-1, 0, 0], [[-1, -1, -1], [-1, -1, 1], [-1, 1, 1], [-1, 1, -1]]],
+      [[0, 1, 0], [[-1, 1, 1], [1, 1, 1], [1, 1, -1], [-1, 1, -1]]],
+      [[0, -1, 0], [[-1, -1, -1], [1, -1, -1], [1, -1, 1], [-1, -1, 1]]]
+    ];
+    const vertices = [];
+    for (const [normal, corners] of faces) {
+      for (const index of [0, 1, 2, 0, 2, 3]) vertices.push(...corners[index].map(value => value * .5), ...normal);
+    }
+    return createMesh(vertices);
+  }
+  function createSphereMesh() {
+    const vertices = [];
+    const rings = 10, segments = 14;
+    const points = [];
+    for (let ring = 0; ring <= rings; ring++) {
+      const theta = ring * Math.PI / rings;
+      const row = [];
+      for (let segment = 0; segment <= segments; segment++) {
+        const phi = segment * Math.PI * 2 / segments;
+        row.push([Math.sin(theta) * Math.cos(phi), Math.cos(theta), Math.sin(theta) * Math.sin(phi)]);
+      }
+      points.push(row);
+    }
+    for (let ring = 0; ring < rings; ring++) {
+      for (let segment = 0; segment < segments; segment++) {
+        const a = points[ring][segment], b = points[ring + 1][segment], c = points[ring + 1][segment + 1], d = points[ring][segment + 1];
+        for (const point of [a, b, d, b, c, d]) vertices.push(...point, ...point);
+      }
+    }
+    return createMesh(vertices);
+  }
+  let program, cubeMesh, sphereMesh, positionLocation, normalLocation, viewProjectionLocation, modelLocation, colorLocation;
+  try {
+    program = createProgram();
+    cubeMesh = createCubeMesh();
+    sphereMesh = createSphereMesh();
+    positionLocation = gl.getAttribLocation(program, "aPosition");
+    normalLocation = gl.getAttribLocation(program, "aNormal");
+    viewProjectionLocation = gl.getUniformLocation(program, "uViewProjection");
+    modelLocation = gl.getUniformLocation(program, "uModel");
+    colorLocation = gl.getUniformLocation(program, "uColor");
+    gl.enable(gl.DEPTH_TEST);
+    gl.clearColor(.025, .04, .1, 1);
+  } catch (error) {
+    console.error("Could not initialize Skyfall 3D:", error);
+    $("skyOverlayKicker").textContent = "3D renderer error";
+    $("skyOverlayTitle").textContent = "Skyfall could not start";
+    $("skyOverlayMessage").textContent = "This browser could not initialize the 3D renderer. Reload the page or try another browser.";
+    $("skyAction").hidden = true;
+    return;
+  }
 
   async function loadSaved() {
     try {
@@ -108,12 +221,12 @@
   }
   function loadLevel(n) {
     level = Math.max(1, Math.min(unlocked, n)); stage = createStage(level);
-    playerX = 0; playerY = 0; distance = 0; elapsed = 0; fallRotation = 0; state = "ready";
+    playerX = 0; playerY = 0; distance = 0; elapsed = 0; cameraYaw = 0; cameraPitch = .18; state = "ready";
     show(`LEVEL ${String(level).padStart(2, "0")} · ${LEVELS}`, "Ready to jump?", "Dodge left, right, up and down through the square gaps. Miss one and you'll restart this level.", `Start level ${level}`);
     $("skyAnnouncement").textContent = `Skyfall level ${level} ready.`; updateHud();
   }
   function start() {
-    playerX = 0; playerY = 0; distance = 0; elapsed = 0; fallRotation = 0; state = "playing"; overlay.hidden = true; updateHud();
+    playerX = 0; playerY = 0; distance = 0; elapsed = 0; state = "playing"; overlay.hidden = true; updateHud();
   }
   function fail() {
     if (state !== "playing") return;
@@ -153,7 +266,6 @@
     playerX = Math.max(SHAFT.left + .3, Math.min(SHAFT.right - .3, playerX));
     playerY = Math.max(SHAFT.bottom + .3, Math.min(SHAFT.top - .3, playerY));
     distance += stage.speed * dt;
-    fallRotation += dt * (Number(keys.right) - Number(keys.left)) * 1.2;
     for (const gate of stage.gates) {
       if (!gate.passed && distance >= gate.distance) {
         gate.passed = true;
@@ -164,101 +276,158 @@
     if (state === "playing" && distance >= stage.finish) complete();
     if (performance.now() - lastHud > 100) { updateHud(); lastHud = performance.now(); }
   }
-  function project(x, y, depth) {
-    const scale = FOCAL_LENGTH / (depth + CAMERA_DISTANCE);
-    return { x: WIDTH / 2 + x * scale, y: HORIZON + (CAMERA_Y - y) * scale, scale };
+  function multiplyMatrices(a, b) {
+    const result = new Float32Array(16);
+    for (let column = 0; column < 4; column++) {
+      for (let row = 0; row < 4; row++) {
+        for (let index = 0; index < 4; index++) result[column * 4 + row] += a[index * 4 + row] * b[column * 4 + index];
+      }
+    }
+    return result;
   }
-  function polygon(points, color) {
-    context.fillStyle = color; context.beginPath(); context.moveTo(points[0].x, points[0].y);
-    for (let index = 1; index < points.length; index++) context.lineTo(points[index].x, points[index].y);
-    context.closePath(); context.fill();
+  function perspective(fov, aspect, near, far) {
+    const f = 1 / Math.tan(fov / 2), range = 1 / (near - far);
+    return new Float32Array([
+      f / aspect, 0, 0, 0,
+      0, f, 0, 0,
+      0, 0, (near + far) * range, -1,
+      0, 0, near * far * 2 * range, 0
+    ]);
+  }
+  function lookAt(eye, center) {
+    let zx = eye[0] - center[0], zy = eye[1] - center[1], zz = eye[2] - center[2];
+    let length = Math.hypot(zx, zy, zz) || 1;
+    zx /= length; zy /= length; zz /= length;
+    let xx = zz, xy = 0, xz = -zx;
+    length = Math.hypot(xx, xz) || 1;
+    xx /= length; xz /= length;
+    const yx = zy * xz - zz * xy, yy = zz * xx - zx * xz, yz = zx * xy - zy * xx;
+    return new Float32Array([
+      xx, yx, zx, 0,
+      xy, yy, zy, 0,
+      xz, yz, zz, 0,
+      -(xx * eye[0] + xy * eye[1] + xz * eye[2]),
+      -(yx * eye[0] + yy * eye[1] + yz * eye[2]),
+      -(zx * eye[0] + zy * eye[1] + zz * eye[2]), 1
+    ]);
+  }
+  function modelMatrix(x, y, z, sx, sy, sz) {
+    return new Float32Array([
+      sx, 0, 0, 0,
+      0, sy, 0, 0,
+      0, 0, sz, 0,
+      x, y, z, 1
+    ]);
+  }
+  function resizeRenderer() {
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return false;
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    const width = Math.round(rect.width * ratio), height = Math.round(rect.height * ratio);
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+    gl.viewport(0, 0, width, height);
+    return true;
+  }
+  function setColor(color) {
+    gl.uniform4f(colorLocation, color[0], color[1], color[2], 1);
+  }
+  function drawMesh(mesh, x, y, z, sx, sy, sz, color) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, mesh.buffer);
+    gl.enableVertexAttribArray(positionLocation);
+    gl.enableVertexAttribArray(normalLocation);
+    gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 24, 0);
+    gl.vertexAttribPointer(normalLocation, 3, gl.FLOAT, false, 24, 12);
+    gl.uniformMatrix4fv(modelLocation, false, modelMatrix(x, y, z, sx, sy, sz));
+    setColor(color);
+    gl.drawArrays(gl.TRIANGLES, 0, mesh.count);
+  }
+  function drawBox(x, y, z, sx, sy, sz, color) {
+    drawMesh(cubeMesh, x, y, z, sx, sy, sz, color);
   }
   function drawTunnel() {
-    const far = 108;
-    const leftNearTop = project(SHAFT.left, SHAFT.top, 0), leftNearBottom = project(SHAFT.left, SHAFT.bottom, 0);
-    const leftFarTop = project(SHAFT.left, SHAFT.top, far), leftFarBottom = project(SHAFT.left, SHAFT.bottom, far);
-    const rightNearTop = project(SHAFT.right, SHAFT.top, 0), rightNearBottom = project(SHAFT.right, SHAFT.bottom, 0);
-    const rightFarTop = project(SHAFT.right, SHAFT.top, far), rightFarBottom = project(SHAFT.right, SHAFT.bottom, far);
-    polygon([leftFarTop, leftNearTop, leftNearBottom, leftFarBottom], "rgba(67,74,129,.2)");
-    polygon([rightFarTop, rightNearTop, rightNearBottom, rightFarBottom], "rgba(58,62,112,.2)");
-    polygon([leftFarTop, rightFarTop, rightNearTop, leftNearTop], "rgba(99,95,160,.12)");
-    polygon([leftFarBottom, rightFarBottom, rightNearBottom, leftNearBottom], "rgba(55,93,145,.18)");
-    const drift = distance % 14;
+    const centerY = -distance - 48;
+    const wallColor = [.11, .16, .31];
+    const railColor = [.25, .39, .66];
+    drawBox(SHAFT.left, centerY, 0, .24, 112, SHAFT.top - SHAFT.bottom, wallColor);
+    drawBox(SHAFT.right, centerY, 0, .24, 112, SHAFT.top - SHAFT.bottom, wallColor);
+    drawBox(0, centerY, SHAFT.bottom, SHAFT.right - SHAFT.left, 112, .24, wallColor);
+    drawBox(0, centerY, SHAFT.top, SHAFT.right - SHAFT.left, 112, .24, wallColor);
+    for (const x of [SHAFT.left + .12, SHAFT.right - .12]) {
+      for (const z of [SHAFT.bottom + .12, SHAFT.top - .12]) drawBox(x, centerY, z, .1, 112, .1, railColor);
+    }
+    const firstLine = Math.floor(distance / 14) * 14;
     for (let index = 0; index < 9; index++) {
-      const depth = 14 * index - drift;
-      if (depth < .5 || depth > far) continue;
-      const corners = [project(SHAFT.left, SHAFT.bottom, depth), project(SHAFT.right, SHAFT.bottom, depth), project(SHAFT.right, SHAFT.top, depth), project(SHAFT.left, SHAFT.top, depth)];
-      context.strokeStyle = "rgba(132,170,237,.18)"; context.lineWidth = Math.max(.7, 1.4 - depth / 100); context.beginPath();
-      context.moveTo(corners[0].x, corners[0].y); for (let c = 1; c < corners.length; c++) context.lineTo(corners[c].x, corners[c].y);
-      context.closePath(); context.stroke();
+      const lineY = -(firstLine + index * 14);
+      if (Math.abs(lineY + distance) > 102) continue;
+      const gridColor = [.23, .31, .5];
+      drawBox(0, lineY, SHAFT.bottom + .18, SHAFT.right - SHAFT.left - .3, .035, .035, gridColor);
+      drawBox(0, lineY, SHAFT.top - .18, SHAFT.right - SHAFT.left - .3, .035, .035, gridColor);
+      drawBox(SHAFT.left + .18, lineY, 0, .035, .035, SHAFT.top - SHAFT.bottom - .3, gridColor);
+      drawBox(SHAFT.right - .18, lineY, 0, .035, .035, SHAFT.top - SHAFT.bottom - .3, gridColor);
     }
-    context.lineWidth = 2;
-    for (const x of [SHAFT.left, SHAFT.right]) for (const y of [SHAFT.bottom, SHAFT.top]) {
-      const a = project(x, y, 0), b = project(x, y, far);
-      context.strokeStyle = "rgba(153,177,255,.55)"; context.beginPath(); context.moveTo(a.x, a.y); context.lineTo(b.x, b.y); context.stroke();
-    }
-  }
-  function drawBox(box, depth, thickness, hue) {
-    const front = [project(box.x1, box.y1, depth), project(box.x2, box.y1, depth), project(box.x2, box.y2, depth), project(box.x1, box.y2, depth)];
-    const back = [project(box.x1, box.y1, depth + thickness), project(box.x2, box.y1, depth + thickness), project(box.x2, box.y2, depth + thickness), project(box.x1, box.y2, depth + thickness)];
-    const light = `hsl(${hue} 78% 57%)`, face = `hsl(${hue} 75% 43%)`, shadow = `hsl(${hue} 72% 29%)`;
-    polygon([front[1], front[2], back[2], back[1]], shadow);
-    polygon([front[2], front[3], back[3], back[2]], light);
-    polygon(front, face);
-    context.strokeStyle = "rgba(255,255,255,.22)"; context.lineWidth = 1;
-    context.beginPath(); context.moveTo(front[3].x, front[3].y); context.lineTo(front[2].x, front[2].y); context.lineTo(back[2].x, back[2].y); context.stroke();
-    context.fillStyle = "rgba(255,255,255,.18)";
-    const stripeY = front[3].y + (front[0].y - front[3].y) * .3;
-    context.fillRect(front[0].x + 5, stripeY, Math.max(0, front[1].x - front[0].x - 10), 2);
   }
   function drawGate(gate) {
-    const depth = gate.distance - distance;
-    if (depth < -1.5 || depth > 108) return;
-    const half = gate.gap / 2, gx1 = gate.centerX - half, gx2 = gate.centerX + half;
-    const gy1 = gate.centerY - half, gy2 = gate.centerY + half;
-    const blocks = [
-      { x1: SHAFT.left, x2: gx1, y1: SHAFT.bottom, y2: SHAFT.top },
-      { x1: gx2, x2: SHAFT.right, y1: SHAFT.bottom, y2: SHAFT.top },
-      { x1: gx1, x2: gx2, y1: SHAFT.bottom, y2: gy1 },
-      { x1: gx1, x2: gx2, y1: gy2, y2: SHAFT.top }
-    ];
-    for (const block of blocks) if (block.x2 - block.x1 > 0.01 && block.y2 - block.y1 > 0.01) drawBox(block, Math.max(0, depth), .82, 346 + level * 2 % 30);
-    const opening = [project(gx1, gy1, Math.max(0, depth)), project(gx2, gy1, Math.max(0, depth)), project(gx2, gy2, Math.max(0, depth)), project(gx1, gy2, Math.max(0, depth))];
-    context.strokeStyle = "rgba(109,245,226,.9)"; context.shadowColor = "#65ffe5"; context.shadowBlur = 12; context.lineWidth = 2;
-    context.beginPath(); context.moveTo(opening[0].x, opening[0].y); for (let index = 1; index < opening.length; index++) context.lineTo(opening[index].x, opening[index].y); context.closePath(); context.stroke(); context.shadowBlur = 0;
+    const y = -gate.distance, half = gate.gap / 2;
+    const x1 = gate.centerX - half, x2 = gate.centerX + half;
+    const z1 = gate.centerY - half, z2 = gate.centerY + half;
+    const blockColor = level < 16 ? [.78, .19, .43] : level < 32 ? [.83, .31, .16] : [.74, .15, .31];
+    const leftWidth = x1 - SHAFT.left, rightWidth = SHAFT.right - x2;
+    if (leftWidth > .03) drawBox((SHAFT.left + x1) / 2, y, 0, leftWidth, .82, SHAFT.top - SHAFT.bottom, blockColor);
+    if (rightWidth > .03) drawBox((x2 + SHAFT.right) / 2, y, 0, rightWidth, .82, SHAFT.top - SHAFT.bottom, blockColor);
+    if (z1 > SHAFT.bottom) drawBox((x1 + x2) / 2, y, (SHAFT.bottom + z1) / 2, x2 - x1, .82, z1 - SHAFT.bottom, blockColor);
+    if (z2 < SHAFT.top) drawBox((x1 + x2) / 2, y, (z2 + SHAFT.top) / 2, x2 - x1, .82, SHAFT.top - z2, blockColor);
+    const glow = [.28, .98, .82];
+    drawBox((x1 + x2) / 2, y + .48, z1, x2 - x1, .08, .08, glow);
+    drawBox((x1 + x2) / 2, y + .48, z2, x2 - x1, .08, .08, glow);
+    drawBox(x1, y + .48, (z1 + z2) / 2, .08, .08, z2 - z1, glow);
+    drawBox(x2, y + .48, (z1 + z2) / 2, .08, .08, z2 - z1, glow);
   }
   function drawPlayer() {
-    const p = project(playerX, playerY, 0), scale = p.scale, bodyWidth = 14, bodyHeight = 20;
-    context.save(); context.translate(p.x, p.y); context.rotate(fallRotation * .08);
-    context.fillStyle = "rgba(0,0,0,.4)"; context.beginPath(); context.ellipse(0, bodyHeight * .74, bodyWidth * .95, 4, 0, 0, Math.PI * 2); context.fill();
-    context.shadowColor = "#70eaff"; context.shadowBlur = 18;
-    context.fillStyle = "#36b7df"; context.fillRect(-bodyWidth / 2, -bodyHeight / 2 + 5, bodyWidth, bodyHeight * .78);
-    context.fillStyle = "#b9f4ff"; context.fillRect(-bodyWidth * .42, -bodyHeight / 2 - 7, bodyWidth * .84, 11);
-    context.fillStyle = "#20345e"; context.fillRect(-bodyWidth * .28, -bodyHeight / 2 - 3, bodyWidth * .18, 2);
-    context.fillRect(bodyWidth * .1, -bodyHeight / 2 - 3, bodyWidth * .18, 2);
-    context.fillStyle = "#3282b5"; context.fillRect(-bodyWidth / 2 - 4, -bodyHeight / 2 + 8, 4, 12); context.fillRect(bodyWidth / 2, -bodyHeight / 2 + 8, 4, 12);
-    context.fillStyle = "#344c7c"; context.fillRect(-bodyWidth / 2 + 1, bodyHeight * .28, 5, 9); context.fillRect(2, bodyHeight * .28, 5, 9);
-    context.restore();
+    const y = -distance;
+    drawMesh(sphereMesh, playerX, y + .05, playerY, .38, .38, .38, [.62, .94, 1]);
+    drawBox(playerX, y - .46, playerY, .62, .9, .45, [.18, .78, .94]);
+    drawBox(playerX - .43, y - .43, playerY, .24, .62, .25, [.12, .53, .78]);
+    drawBox(playerX + .43, y - .43, playerY, .24, .62, .25, [.12, .53, .78]);
+    drawBox(playerX - .18, y - .96, playerY, .2, .4, .24, [.18, .35, .63]);
+    drawBox(playerX + .18, y - .96, playerY, .2, .4, .24, [.18, .35, .63]);
   }
   function draw() {
-    const sky = context.createLinearGradient(0, 0, 0, HEIGHT); sky.addColorStop(0, "#10142c"); sky.addColorStop(.5, "#171d3a"); sky.addColorStop(1, "#080b18");
-    context.fillStyle = sky; context.fillRect(0, 0, WIDTH, HEIGHT);
-    for (const star of stars) {
-      const sy = ((star.y + distance * 19) % HEIGHT + HEIGHT) % HEIGHT;
-      context.fillStyle = `rgba(210,230,255,${.22 + (star.size === 2 ? .3 : 0)})`; context.fillRect(star.x, sy, star.size, star.size);
-    }
+    if (gamePanel.hidden || !resizeRenderer()) return;
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.useProgram(program);
+    const lookDistance = 19, lateralLook = Math.sin(cameraPitch) * lookDistance;
+    const target = [
+      playerX + Math.sin(cameraYaw) * lateralLook,
+      -distance - Math.cos(cameraPitch) * lookDistance,
+      playerY - Math.cos(cameraYaw) * lateralLook
+    ];
+    const eye = [
+      playerX - Math.sin(cameraYaw) * 1.8,
+      -distance + 2.4,
+      playerY + Math.cos(cameraYaw) * 1.8
+    ];
+    const viewProjection = multiplyMatrices(
+      perspective(Math.PI / 3, canvas.width / canvas.height, .1, 240),
+      lookAt(eye, target)
+    );
+    gl.uniformMatrix4fv(viewProjectionLocation, false, viewProjection);
     drawTunnel();
-    const visibleGates = stage.gates.filter(gate => gate.distance - distance > -1.5 && gate.distance - distance < 108).sort((a, b) => b.distance - a.distance);
-    for (const gate of visibleGates) drawGate(gate);
+    for (const gate of stage.gates) {
+      const relativeDepth = gate.distance - distance;
+      if (relativeDepth > -3 && relativeDepth < 105) drawGate(gate);
+    }
     const finishDepth = stage.finish - distance;
-    if (finishDepth > 0 && finishDepth < 108) {
-      const edgeA = project(SHAFT.left, SHAFT.bottom, finishDepth), edgeB = project(SHAFT.right, SHAFT.bottom, finishDepth), edgeC = project(SHAFT.right, SHAFT.top, finishDepth), edgeD = project(SHAFT.left, SHAFT.top, finishDepth);
-      context.strokeStyle = "#8affce"; context.shadowColor = "#65ffc4"; context.shadowBlur = 14; context.lineWidth = 3;
-      context.beginPath(); context.moveTo(edgeA.x, edgeA.y); context.lineTo(edgeB.x, edgeB.y); context.lineTo(edgeC.x, edgeC.y); context.lineTo(edgeD.x, edgeD.y); context.closePath(); context.stroke(); context.shadowBlur = 0;
-      context.fillStyle = "#bcffe5"; context.font = "bold 12px Arial"; context.textAlign = "center"; context.fillText("LANDING PLATFORM", (edgeA.x + edgeB.x) / 2, (edgeA.y + edgeC.y) / 2);
+    if (finishDepth > 0 && finishDepth < 105) {
+      const y = -stage.finish, landing = [.2, .94, .64];
+      drawBox(0, y, SHAFT.bottom + .12, SHAFT.right - SHAFT.left, .12, .12, landing);
+      drawBox(0, y, SHAFT.top - .12, SHAFT.right - SHAFT.left, .12, .12, landing);
+      drawBox(SHAFT.left + .12, y, 0, .12, .12, SHAFT.top - SHAFT.bottom, landing);
+      drawBox(SHAFT.right - .12, y, 0, .12, .12, SHAFT.top - SHAFT.bottom, landing);
     }
     drawPlayer();
-    context.fillStyle = "rgba(205,225,255,.65)"; context.font = "11px Arial"; context.textAlign = "left"; context.fillText(`FALL SPEED  ${(stage.speed * 3.6).toFixed(0)} km/h`, 18, HEIGHT - 18);
   }
   function frame(timestamp) {
     const dt = lastFrame ? Math.min((timestamp - lastFrame) / 1000, .04) : 0; lastFrame = timestamp; update(dt); draw(); requestAnimationFrame(frame);
@@ -306,18 +475,21 @@
     if (event.detail !== "sky" && state === "playing") pause();
     clearKeys();
   });
-  $("classicTab").addEventListener("click", () => {
-    $("classicTab").setAttribute("aria-selected", "true"); $("classicTab").removeAttribute("tabindex");
-    $("skyTab").setAttribute("aria-selected", "false"); $("skyTab").setAttribute("tabindex", "-1");
-    $("classicGame").hidden = false; $("skyGame").hidden = true;
-    document.dispatchEvent(new CustomEvent("arcade-tab-change", { detail: "classic" }));
+  let dragPointer = null, dragX = 0, dragY = 0;
+  canvas.addEventListener("pointerdown", event => {
+    if (gamePanel.hidden || event.target !== canvas || state !== "playing") return;
+    dragPointer = event.pointerId; dragX = event.clientX; dragY = event.clientY;
+    canvas.setPointerCapture(event.pointerId);
   });
-  $("skyTab").addEventListener("click", () => {
-    $("skyTab").setAttribute("aria-selected", "true"); $("skyTab").removeAttribute("tabindex");
-    $("classicTab").setAttribute("aria-selected", "false"); $("classicTab").setAttribute("tabindex", "-1");
-    $("skyGame").hidden = false; $("classicGame").hidden = true;
-    document.dispatchEvent(new CustomEvent("arcade-tab-change", { detail: "sky" }));
+  canvas.addEventListener("pointermove", event => {
+    if (event.pointerId !== dragPointer) return;
+    cameraYaw -= (event.clientX - dragX) * .008;
+    cameraPitch = Math.max(-.4, Math.min(1.05, cameraPitch + (event.clientY - dragY) * .006));
+    dragX = event.clientX; dragY = event.clientY;
   });
+  for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) {
+    canvas.addEventListener(type, event => { if (event.pointerId === dragPointer) dragPointer = null; });
+  }
   async function initialize() {
     await loadSaved();
     renderLevels(); loadLevel(1); requestAnimationFrame(frame);

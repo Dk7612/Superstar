@@ -18,10 +18,12 @@ Set `ADMIN_CODE` in the hosting service before starting the app. Existing deploy
 
 ## Game progress
 
-The Drop and Skyfall 3D progress is synchronized to the login code after sign-in. Existing browser progress is merged into the account save the first time each game loads, preserving the highest unlocked level and best time for each level. Account saves use the same persistent disk as other service state.
+The Games page shows a preview gallery for The Drop and Skyfall 3D; both games have 50 levels with progressively harder obstacle courses. Skyfall 3D uses WebGL for a vertical 3D shaft, keyboard/touch steering, and mouse or touch dragging to look around. Each game can be played in fullscreen on browsers that support the Fullscreen API.
+
+Game progress is synchronized to the login code after sign-in. Existing browser progress is merged into the account save the first time each game loads, preserving the highest unlocked level and best time for each level. Account saves use the same persistent disk as other service state.
 
 Admins can assign or change a display name for any login code in the user list. Players can reset each game's account progress separately with that game's Reset progress button.
 
 ## Trusted admin devices
 
-The cookie-consent popup lets visitors allow or reject the optional trusted-device cookie. Allowing it enables password-free Admin restoration for 30 days; the choice is remembered by the browser, and each subsequent admin sign-in or trusted-session restore renews the expiry. Visitors can change this choice later through **Cookie settings**. Rejecting it revokes the browser's trusted-device cookie while regular access-code login remains available. The cookie is random and HttpOnly; only its hash, expiry, admin code, and associated device ID are stored by the server. Device IDs alone never grant access. Trusted-device records persist across restarts only when `DATA_DIR` points to persistent storage.
+After an Admin signs in, a bottom-left slide-in lets them allow or reject the optional trusted-device cookie. Allowing it immediately enables password-free Admin restoration for 30 days; the choice is remembered by the browser, and each subsequent admin sign-in or trusted-session restore renews the expiry. Admins can change this choice later through **Cookie settings**. Rejecting it revokes the browser's trusted-device cookie while regular access-code login remains available. The cookie is random and HttpOnly; only its hash, expiry, admin code, and associated device ID are stored by the server. Device IDs alone never grant access. Trusted-device records persist across restarts only when `DATA_DIR` points to persistent storage.

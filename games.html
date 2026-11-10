@@ -35,9 +35,25 @@
     .intro p { color:var(--muted); margin:0; line-height:1.55; }
     .level-picker { display:flex; align-items:center; gap:10px; white-space:nowrap; color:var(--muted); font-size:14px; }
     .level-picker select { color:inherit; background:#111a34; border:1px solid var(--line); border-radius:8px; padding:9px 12px; }
-    .game-tabs { display:flex; gap:10px; margin:0 0 16px; }
-    .game-tabs button[aria-selected="true"] { background:linear-gradient(135deg,#657cf0,#529ec2); border-color:transparent; color:#fff; }
-    .game-panel[hidden] { display:none; }
+    .game-gallery { margin:20px 0 28px; }
+    .gallery-heading { margin:0 0 14px; font-size:18px; }
+    .gallery-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:18px; }
+    .game-card { display:block; width:100%; padding:0; overflow:hidden; background:var(--panel); border:1px solid var(--line); border-radius:15px; text-align:left; box-shadow:0 14px 36px rgba(0,0,0,.24); }
+    .game-card:hover { background:var(--panel); transform:translateY(-3px); border-color:var(--accent); }
+    .game-preview { position:relative; display:grid; place-items:center; aspect-ratio:1.55; overflow:hidden; background:radial-gradient(ellipse at 50% 70%,#1d4676,#101936 62%,#090f20); }
+    .game-preview::before,.game-preview::after { content:""; position:absolute; width:72%; height:130%; top:26%; border:2px solid rgba(133,222,255,.55); transform:perspective(240px) rotateX(56deg); box-shadow:0 0 22px rgba(104,210,255,.25); }
+    .preview-drop .preview-player { position:absolute; z-index:2; width:18px; height:27px; top:48%; left:48%; border-radius:9px 9px 7px 7px; background:linear-gradient(#c8f7ff,#42b9eb); box-shadow:0 0 22px #57d9ff; }
+    .preview-drop .preview-ring { position:absolute; z-index:1; top:31%; width:66%; height:22px; border:6px solid #ee588d; border-bottom:0; border-radius:80% 80% 0 0; transform:rotate(-8deg); box-shadow:0 0 18px rgba(255,73,136,.52); }
+    .preview-sky { background:radial-gradient(ellipse at 50% 50%,#263d73,#11152d 68%,#090f20); }
+    .preview-sky::before { width:48%; height:145%; top:-21%; transform:perspective(180px) rotateY(24deg); border-color:rgba(127,197,255,.42); }
+    .preview-sky::after { width:48%; height:145%; top:-21%; transform:perspective(180px) rotateY(-24deg); border-color:rgba(127,197,255,.42); }
+    .preview-gate { position:absolute; z-index:1; width:64%; height:9px; top:34%; background:linear-gradient(90deg,#ff4a78 0 35%,transparent 35% 64%,#ff4a78 64%); box-shadow:0 0 16px #fa4b85; transform:rotate(-10deg); }
+    .preview-diver { position:absolute; z-index:2; width:15px; height:21px; top:51%; left:49%; border-radius:10px; background:#8deeff; box-shadow:0 0 20px #50dfff; }
+    .game-card-caption { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:14px 16px; }
+    .game-card-caption strong { display:block; font-size:16px; }
+    .game-card-caption span { color:var(--muted); font-size:12px; }
+    .game-panel[hidden],.game-gallery[hidden] { display:none; }
+    .back-to-games { margin:0 0 16px; }
 
     .game-shell { overflow:hidden; background:var(--panel); border:1px solid var(--line); border-radius:18px; box-shadow:0 18px 55px rgba(0,0,0,.3); backdrop-filter:blur(10px); }
     .game-topbar { display:grid; grid-template-columns:1fr minmax(120px,2fr) 1fr; align-items:center; gap:18px; padding:14px 20px; border-bottom:1px solid var(--line); }
@@ -55,6 +71,11 @@
     .overlay-card h3 { margin:10px 0 8px; font-size:26px; } .overlay-card p { color:#b7c1df; margin:0 auto 18px; line-height:1.55; max-width:300px; }
     #gameAction { background:linear-gradient(135deg,#657cf0,#529ec2); border:0; font-weight:700; min-width:160px; }
     .game-controls { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:14px 20px; border-top:1px solid var(--line); }
+    .game-control-buttons { display:flex; align-items:center; gap:8px; }
+    .game-shell:fullscreen { display:flex; flex-direction:column; width:100vw; height:100vh; border:0; border-radius:0; background:#090f21; }
+    .game-shell:fullscreen .play-area { flex:1; width:100%; min-height:0; display:grid; place-items:center; }
+    .game-shell:fullscreen #dropperCanvas,.game-shell:fullscreen #skyCanvas { width:100%; height:100%; max-height:100%; aspect-ratio:auto; object-fit:contain; }
+    .game-shell:fullscreen .game-controls { flex-shrink:0; }
     .control-hint { color:var(--muted); font-size:12px; line-height:1.5; } .control-hint kbd { display:inline-block; padding:2px 6px; margin:0 2px; border:1px solid var(--line); border-radius:4px; color:inherit; font:inherit; }
     .pause-button { padding:8px 12px; } .touch-controls { display:none; gap:12px; justify-content:center; padding:12px; }
     .reset-progress { background:#a94363; }
@@ -70,7 +91,7 @@
     :root[data-theme="light"] .overlay-card { background:rgba(255,255,255,.96); color:#202945; border-color:#cbd5eb; }
     :root[data-theme="light"] .overlay-card p { color:#53617e; }
     :root[data-theme="light"] #gameAction { background:linear-gradient(135deg,#657cf0,#529ec2); color:white; }
-    @media(max-width:640px) { .game-tabs { flex-wrap:wrap; } .touch-controls.sky-touch-controls { display:grid; grid-template-columns:repeat(4,64px); } header { padding:12px 4%; } main { width:94%; margin-top:20px; } .intro { align-items:flex-start; flex-direction:column; } .game-topbar { grid-template-columns:1fr 1.4fr; gap:12px; padding:12px 14px; } .time-readout { display:none; } .game-controls { padding:12px 14px; } .control-hint { font-size:11px; } .touch-controls { display:flex; } }
+    @media(max-width:640px) { .touch-controls.sky-touch-controls { display:grid; grid-template-columns:repeat(4,64px); } header { padding:12px 4%; } main { width:94%; margin-top:20px; } .intro { align-items:flex-start; flex-direction:column; } .game-topbar { grid-template-columns:1fr 1.4fr; gap:12px; padding:12px 14px; } .time-readout { display:none; } .game-controls { padding:12px 14px; } .control-hint { font-size:11px; } .touch-controls { display:flex; } .game-control-buttons { gap:5px; } .game-control-buttons button { padding:7px 9px; font-size:12px; } }
     @media(prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto !important; transition-duration:.01ms !important; } .starfield { opacity:.65; } }
   </style>
   <script>
@@ -89,15 +110,28 @@
   <header>
     <a class="brand" href="/" aria-label="Superstar home"><img src="/favicon.png?v=2" alt=""><span>Superstar</span></a><h1>Games</h1>
     <details class="star-settings"><summary>Star settings</summary><div class="settings-menu">
-      <label>Direction<select id="starDirection"><option value="down-right">Down-right</option><option value="down-left">Down-left</option><option value="up-right">Up-right</option><option value="up-left">Up-left</option><option value="down">Down</option><option value="up">Up</option><option value="right">Right</option><option value="left" selected>Left (right to left)</option></select></label>
-      <label>Speed<select id="starSpeed"><option value="slow">Slow</option><option value="normal">Normal</option><option value="fast">Fast</option></select></label>
-      <label>Theme<select id="themeMode"><option value="dark">Dark</option><option value="light">Light</option></select></label>
+      <label>Direction<select id="starDirection"><option value="down-right">Down-right</option><option value="down-left" selected>Down-left</option><option value="up-right">Up-right</option><option value="up-left">Up-left</option><option value="down">Down</option><option value="up">Up</option><option value="right">Right</option><option value="left">Left (right to left)</option></select></label>
+      <label>Speed<select id="starSpeed"><option value="slow">Slow</option><option value="normal">Normal</option><option value="fast" selected>Fast</option></select></label>
+      <label>Theme<select id="themeMode"><option value="dark" selected>Dark</option><option value="light">Light</option></select></label>
     </div></details>
   </header>
   <main>
     <p id="saveStatus" aria-live="polite">Progress saves to your login code</p>
-    <div class="game-tabs" role="tablist" aria-label="Choose a game"><button type="button" role="tab" id="classicTab" aria-selected="true" aria-controls="classicGame">The Drop</button><button type="button" role="tab" id="skyTab" aria-selected="false" aria-controls="skyGame" tabindex="-1">Skyfall 3D</button></div>
-    <div class="game-panel" id="classicGame" role="tabpanel" aria-labelledby="classicTab">
+    <section class="game-gallery" id="gameGallery" aria-labelledby="gallery-heading">
+      <h2 class="gallery-heading" id="gallery-heading">Pick your next drop</h2>
+      <div class="gallery-grid">
+        <button type="button" class="game-card" data-open-game="classic" aria-label="Play The Drop">
+          <span class="game-preview preview-drop" aria-hidden="true"><span class="preview-ring"></span><span class="preview-player"></span></span>
+          <span class="game-card-caption"><span><strong>The Drop</strong><span>50 levels · precision falling</span></span><span aria-hidden="true">→</span></span>
+        </button>
+        <button type="button" class="game-card" data-open-game="sky" aria-label="Play Skyfall 3D">
+          <span class="game-preview preview-sky" aria-hidden="true"><span class="preview-gate"></span><span class="preview-diver"></span></span>
+          <span class="game-card-caption"><span><strong>Skyfall 3D</strong><span>50 levels · look around and dive</span></span><span aria-hidden="true">→</span></span>
+        </button>
+      </div>
+    </section>
+    <div class="game-panel" id="classicGame" hidden>
+      <button type="button" class="back-to-games" data-back-to-games>← All games</button>
     <section class="intro" aria-labelledby="games-heading"><div><div class="eyebrow">Superstar arcade · game 01</div><h2 id="games-heading">The Drop</h2><p>One tiny diver. Fifty floors. Find the gap and keep falling.</p></div>
       <label class="level-picker" for="levelSelect">Level<select id="levelSelect" aria-label="Choose an unlocked level"></select></label>
     </section>
@@ -111,11 +145,12 @@
         <div class="sr-only" id="gameAnnouncement" aria-live="polite"></div>
       </div>
       <div class="touch-controls" aria-label="Touch controls"><button type="button" data-direction="left" aria-label="Move left">←</button><button type="button" data-direction="right" aria-label="Move right">→</button></div>
-      <div class="game-controls"><div class="control-hint"><kbd>←</kbd><kbd>→</kbd> or <kbd>A</kbd><kbd>D</kbd> to steer · <kbd>Space</kbd> to pause</div><div><button type="button" class="reset-progress" id="resetDropper">Reset progress</button><button type="button" class="pause-button" id="pauseButton" aria-label="Pause game">Pause</button></div></div>
+      <div class="game-controls"><div class="control-hint"><kbd>←</kbd><kbd>→</kbd> or <kbd>A</kbd><kbd>D</kbd> to steer · <kbd>Space</kbd> to pause</div><div class="game-control-buttons"><button type="button" data-fullscreen>Fullscreen</button><button type="button" class="reset-progress" id="resetDropper">Reset progress</button><button type="button" class="pause-button" id="pauseButton" aria-label="Pause game">Pause</button></div></div>
     </section>
     </div>
-    <section class="game-panel" id="skyGame" role="tabpanel" aria-labelledby="skyTab" hidden>
-      <div class="intro"><div><div class="eyebrow">Perspective freefall · game 02</div><h2>Skyfall 3D</h2><p>Dive through a shifting tower of chunky neon obstacles. Steer in every direction to find the opening.</p></div>
+    <section class="game-panel" id="skyGame" hidden>
+      <button type="button" class="back-to-games" data-back-to-games>← All games</button>
+      <div class="intro"><div><div class="eyebrow">True 3D vertical drop · game 02</div><h2>Skyfall 3D</h2><p>Fall down through a 3D obstacle shaft. Steer in every direction, and drag to look around as you dive.</p></div>
         <label class="level-picker" for="skyLevelSelect">Level<select id="skyLevelSelect" aria-label="Choose an unlocked Skyfall 3D level"></select></label>
       </div>
       <section class="game-shell" aria-label="Skyfall 3D game">
@@ -128,9 +163,43 @@
           <div class="sr-only" id="skyAnnouncement" aria-live="polite"></div>
         </div>
         <div class="touch-controls sky-touch-controls" aria-label="Skyfall movement controls"><button type="button" data-move="left" aria-label="Move left">←</button><button type="button" data-move="up" aria-label="Move up">↑</button><button type="button" data-move="down" aria-label="Move down">↓</button><button type="button" data-move="right" aria-label="Move right">→</button></div>
-        <div class="game-controls"><div class="control-hint"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrow keys to dodge <span aria-hidden="true">·</span> <kbd>Space</kbd> to pause</div><div><button type="button" class="reset-progress" id="resetSkyfall">Reset progress</button><button type="button" class="pause-button" id="skyPause" aria-label="Pause Skyfall 3D">Pause</button></div></div>
+        <div class="game-controls"><div class="control-hint"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrow keys to dodge · drag to look around · <kbd>Space</kbd> to pause</div><div class="game-control-buttons"><button type="button" data-fullscreen>Fullscreen</button><button type="button" class="reset-progress" id="resetSkyfall">Reset progress</button><button type="button" class="pause-button" id="skyPause" aria-label="Pause Skyfall 3D">Pause</button></div></div>
       </section>
     </section>
+    <script>
+      const gameGallery = document.getElementById("gameGallery");
+      const gamePanels = { classic: document.getElementById("classicGame"), sky: document.getElementById("skyGame") };
+      function showGame(game) {
+        gameGallery.hidden = true;
+        gamePanels.classic.hidden = game !== "classic";
+        gamePanels.sky.hidden = game !== "sky";
+        document.dispatchEvent(new CustomEvent("arcade-tab-change", { detail: game }));
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+      document.querySelectorAll("[data-open-game]").forEach(button => button.addEventListener("click", () => showGame(button.dataset.openGame)));
+      document.querySelectorAll("[data-back-to-games]").forEach(button => button.addEventListener("click", () => {
+        gamePanels.classic.hidden = true;
+        gamePanels.sky.hidden = true;
+        gameGallery.hidden = false;
+        document.dispatchEvent(new CustomEvent("arcade-tab-change", { detail: null }));
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }));
+      document.querySelectorAll("[data-fullscreen]").forEach(button => button.addEventListener("click", async () => {
+        const shell = button.closest(".game-shell");
+        try {
+          if (document.fullscreenElement === shell) await document.exitFullscreen();
+          else await shell.requestFullscreen();
+        } catch (error) {
+          console.error("Could not change fullscreen mode:", error);
+          document.getElementById("saveStatus").textContent = "Fullscreen is not available in this browser.";
+        }
+      }));
+      document.addEventListener("fullscreenchange", () => {
+        document.querySelectorAll("[data-fullscreen]").forEach(button => {
+          button.textContent = document.fullscreenElement === button.closest(".game-shell") ? "Exit fullscreen" : "Fullscreen";
+        });
+      });
+    </script>
   </main>
   <script>
     window.SuperstarGameSaves = (() => {

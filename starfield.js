@@ -98,9 +98,9 @@
     if (saved && speeds[saved.speed]) speedSelect.value = saved.speed;
     if (saved && ["dark", "light"].includes(saved.theme)) themeSelect.value = saved.theme;
   } catch {
-    // Keep the default leftward motion, normal speed, and dark theme.
+    // Keep the default down-left motion, fast speed, and dark theme.
   }
-  if (!directions[directionSelect.value]) directionSelect.value = "left";
+  if (!directions[directionSelect.value]) directionSelect.value = "down-left";
 
   directionSelect.addEventListener("change", applySettings);
   speedSelect.addEventListener("change", applySettings);
