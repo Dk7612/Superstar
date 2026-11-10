@@ -48,32 +48,24 @@
     :root[data-theme="light"] th,
     :root[data-theme="light"] td { border-color:#d6def0; }
     :root[data-theme="light"] .notice { color:#53617e; }
-    :root[data-theme="light"] #loadingScreen { background:#f3f6ff; color:#202945; }
-    :root[data-theme="light"] #progressContainer { background:#dbe3f5; }
-    :root[data-theme="light"] #progressBar { background:#536bc3; }
 
     /* Loading screen styles */
-    #loadingScreen { position:fixed;top:0;left:0;width:100%;height:100%;background:#080d20;color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;}
-    #progressContainer { width:80%;background:#27365f;height:20px;border-radius:10px;margin-top:20px;}
-    #progressBar { width:0%;height:100%;background:#8ea7ff;border-radius:10px;}
-    body:not(.authenticated) { background:#fff; color:#111; }
-    body:not(.authenticated) .starfield,
-    body:not(.authenticated) nav { display:none; }
-    body:not(.authenticated) .container { width:100%; min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; }
-    body:not(.authenticated) .container > h1 { display:none; }
-    body:not(.authenticated) #loginCard { width:min(320px,100%); margin:0; padding:0; background:transparent; color:#111; border:0; border-radius:0; box-shadow:none; backdrop-filter:none; }
-    body:not(.authenticated) #loginCard h2 { margin:0 0 16px; font-size:20px; font-weight:500; }
-    body:not(.authenticated) #loginForm input { display:block; width:100%; margin:0 0 10px; background:#fff; color:#111; border:1px solid #c9c9c9; border-radius:4px; }
-    body:not(.authenticated) #loginForm button { margin:0; padding:8px 14px; background:#f3f3f3; color:#111; border:1px solid #bdbdbd; border-radius:4px; }
-    body:not(.authenticated) #loginForm button:hover { background:#e9e9e9; }
-    body:not(.authenticated) .notice { color:#666; font-size:12px; line-height:1.5; }
-    body:not(.authenticated) #loadingScreen { background:#fff; color:#111; }
-    body:not(.authenticated) #progressContainer { display:none; }
+    body.logged-out { background:#fff; color:#111; }
+    body.logged-out .starfield,
+    body.logged-out nav { display:none !important; }
+    body.logged-out .container { width:100%; min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; }
+    body.logged-out .container > h1 { display:none; }
+    body.logged-out #loginCard { width:min(320px,100%); margin:0; padding:0; background:transparent; color:#111; border:0; border-radius:0; box-shadow:none; backdrop-filter:none; }
+    body.logged-out #loginCard h2 { margin:0 0 16px; font-size:20px; font-weight:500; }
+    body.logged-out #loginForm input { display:block; width:100%; margin:0 0 10px; background:#fff; color:#111; border:1px solid #c9c9c9; border-radius:4px; }
+    body.logged-out #loginForm button { margin:0; padding:8px 14px; background:#f3f3f3; color:#111; border:1px solid #bdbdbd; border-radius:4px; }
+    body.logged-out #loginForm button:hover { background:#e9e9e9; }
+    body.logged-out .notice { color:#666; font-size:12px; line-height:1.5; }
     #welcomePanel { display:none; }
     @media (prefers-reduced-motion: reduce) { .starfield { opacity:.65; } }
   </style>
 </head>
-<body>
+<body class="logged-out">
 
 <canvas class="starfield" aria-hidden="true"></canvas>
 <nav class="container top-nav">
@@ -109,15 +101,6 @@
     </div>
   </details>
 </nav>
-
-<!-- Loading Screen -->
-<div id="loadingScreen">
-  <h2>Loading Dashboard...</h2>
-  <div id="progressContainer">
-    <div id="progressBar"></div>
-  </div>
-  <p id="loadingText">Connecting to server...</p>
-</div>
 
 <div class="container">
   <h1>Dashboard</h1>
@@ -195,34 +178,6 @@ function getDeviceID() {
   return id;
 }
 
-// --- Loading screen simulation ---
-let progress = 0;
-const progressBar = document.getElementById("progressBar");
-const loadingText = document.getElementById("loadingText");
-
-function simulateLoading() {
-  progress += Math.random() * 10;
-  if(progress > 100) progress = 100;
-  progressBar.style.width = progress + "%";
-  
-  if(progress < 100) setTimeout(simulateLoading, 200);
-  else loadingText.innerText = "Server is almost ready...";
-}
-
-simulateLoading();
-
-// Ping the health endpoint until the server responds.
-async function waitForServer() {
-  try {
-    await fetch("/health");
-    document.getElementById("loadingScreen").style.display="none";
-  } catch(e){
-    setTimeout(waitForServer, 1000);
-  }
-}
-
-waitForServer();
-
 // --- Login / Dashboard ---
 document.getElementById("loginForm").addEventListener("submit", event => {
   event.preventDefault();
@@ -240,7 +195,9 @@ async function login() {
   if(!data.ok) return alert(data.error);
   role = data.role;
   adminToken = data.adminToken || "";
+  document.body.classList.remove("logged-out");
   document.body.classList.add("authenticated");
+  try { sessionStorage.setItem("superstar-authenticated", "1"); } catch { /* Page navigation still works if session storage is disabled. */ }
   document.getElementById("loginCard").style.display = "none";
   document.getElementById("welcomePanel").style.display = "block";
   document.getElementById("welcomeMessage").textContent = `Signed in as ${role}. Enjoy the stars.`;
