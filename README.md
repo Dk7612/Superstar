@@ -16,6 +16,10 @@ NOTE 3.0: if you ask me to make changes to the proxy or something and i say yes 
 
 The service stores login history, generated login codes, account names, device locks, device/IP bans, trusted admin devices, and per-login-code game progress in `data/service-data.json`. Set the `DATA_DIR` environment variable to a persistent disk path to keep this state across restarts and redeploys. On Render, attach a persistent disk to the web service and set `DATA_DIR` to its mount path (for example, `/var/data`). Without a persistent disk, Render may erase data stored on the service filesystem when it restarts or is redeployed. The admin login code is configured through `ADMIN_CODE` (or the legacy `SUPERADMIN_CODE` variable). A previously configured `USER_CODE` is ignored, so that login is disabled.
 
+## Render deployments
+
+The `Deploy to Render` GitHub Actions workflow triggers a Render deployment for every push to `main`. To enable it, add the service's Deploy Hook URL as the `RENDER_DEPLOY_HOOK` repository secret in GitHub under **Settings → Secrets and variables → Actions**. Keep the URL secret. Disable Render's built-in Auto-Deploy after adding the hook to avoid duplicate deployments.
+
 ## Login code configuration
 
 Set `ADMIN_CODE` in the hosting service before starting the app. Existing deployments can keep using `SUPERADMIN_CODE`; it remains supported as a fallback. `USER_CODE` is no longer needed and is ignored if still configured. Do not put code values in source files or commit messages. Admins can generate random guest codes or choose a custom code of 4-32 letters, numbers, hyphens, or underscores. Newly generated accounts have the `guest` role; only the configured admin account can manage login history, bans, and generated account names. Previously generated accounts are migrated to guest access when persistent state is loaded.
