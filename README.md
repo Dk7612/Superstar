@@ -18,7 +18,7 @@ The service stores login history, generated login codes, account names, device l
 
 ## Login code configuration
 
-Set `ADMIN_CODE` in the hosting service before starting the app. Existing deployments can keep using `SUPERADMIN_CODE`; it remains supported as a fallback. `USER_CODE` is no longer needed and is ignored if still configured. Do not put code values in source files or commit messages. Newly generated accounts have the `guest` role; only the configured admin account can manage login history, bans, and generated account names. Previously generated accounts are migrated to guest access when persistent state is loaded.
+Set `ADMIN_CODE` in the hosting service before starting the app. Existing deployments can keep using `SUPERADMIN_CODE`; it remains supported as a fallback. `USER_CODE` is no longer needed and is ignored if still configured. Do not put code values in source files or commit messages. Admins can generate random guest codes or choose a custom code of 4-32 letters, numbers, hyphens, or underscores. Newly generated accounts have the `guest` role; only the configured admin account can manage login history, bans, and generated account names. Previously generated accounts are migrated to guest access when persistent state is loaded.
 
 ## Game progress
 

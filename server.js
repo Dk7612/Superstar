@@ -72,7 +72,8 @@ function loadPersistentState() {
     const generatedUsers = Object.create(null);
     const generatedUserOrder = [];
     for (const account of saved.generatedUsers || []) {
-      if (!account || typeof account.code !== "string" || !/^[a-f0-9]{8}$/i.test(account.code) ||
+      if (!account || typeof account.code !== "string" ||
+          !(/^[a-f0-9]{8}$/i.test(account.code) || /^[A-Za-z0-9_-]{4,32}$/.test(account.code)) ||
           !["admin", "user", "guest"].includes(account.role) ||
           Object.prototype.hasOwnProperty.call(generatedUsers, account.code)) {
         throw new Error("Stored generated users have an invalid format");
@@ -455,14 +456,25 @@ app.post("/login", (req, res) => {
 });
 
 app.post("/generate", requireAdmin, (req, res) => {
-  if ((req.body || {}).role !== "guest") {
+  const body = req.body || {};
+  if (body.role !== "guest") {
     return res.status(400).json({ error: "Invalid role" });
   }
 
   let code;
-  do {
-    code = crypto.randomBytes(4).toString("hex");
-  } while (users[code]);
+  if (body.code !== undefined && body.code !== "") {
+    if (typeof body.code !== "string" || !/^[A-Za-z0-9_-]{4,32}$/.test(body.code)) {
+      return res.status(400).json({ error: "Custom codes must be 4-32 characters using letters, numbers, hyphens, or underscores" });
+    }
+    code = body.code;
+    if (Object.prototype.hasOwnProperty.call(users, code)) {
+      return res.status(409).json({ error: "That code is already in use" });
+    }
+  } else {
+    do {
+      code = crypto.randomBytes(4).toString("hex");
+    } while (Object.prototype.hasOwnProperty.call(users, code));
+  }
   users[code] = { role: "guest", lockedDevice: null };
   generatedUserOrder.push(code);
   try {

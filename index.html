@@ -138,7 +138,12 @@
 
   <div class="card" id="adminPanel" style="display:none">
     <h2>Code Generator</h2>
-    <button class="generate" onclick="generateCode()">Generate Guest Code</button>
+    <form id="generateCodeForm">
+      <input id="customCodeInput" type="text" minlength="4" maxlength="32" pattern="[A-Za-z0-9_-]{4,32}"
+        placeholder="Custom code (optional)" aria-label="Custom guest code">
+      <button class="generate" type="submit">Generate Guest Code</button>
+    </form>
+    <p class="notice">Leave the field blank for a random code. Custom codes use 4-32 letters, numbers, hyphens, or underscores.</p>
     <div id="newCode"></div>
 
     <h2>User List</h2>
@@ -253,6 +258,10 @@ document.getElementById("loginForm").addEventListener("submit", event => {
   event.preventDefault();
   login();
 });
+document.getElementById("generateCodeForm").addEventListener("submit", event => {
+  event.preventDefault();
+  generateCode();
+});
 
 function showAuthenticatedDashboard(session, remembered = false) {
   role = session.role;
@@ -337,13 +346,15 @@ function showAdminPanel() {
 }
 
 async function generateCode() {
+  const code = document.getElementById("customCodeInput").value;
   const res = await fetch("/generate", {
     method:"POST", headers:adminHeaders(true),
-    body: JSON.stringify({role: "guest"})
+    body: JSON.stringify({role: "guest", code})
   });
   if (!res.ok) return alert((await res.json()).error);
   const data = await res.json();
   document.getElementById("newCode").innerText = "New code: "+data.code;
+  document.getElementById("customCodeInput").value = "";
   loadUsers();
 }
 
