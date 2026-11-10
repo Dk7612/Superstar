@@ -21,6 +21,7 @@
     .star-settings[open] { z-index:20; }
     .star-settings summary { list-style:none; cursor:pointer; background:#27365f; color:#f5f7ff; padding:9px 14px; border:1px solid rgba(190,205,255,.18); border-radius:7px; }
     .star-settings summary::-webkit-details-marker { display:none; }
+    #saveStatus { margin:0 0 14px; color:var(--muted); font-size:12px; }
     .settings-menu { position:absolute; z-index:21; right:0; top:calc(100% + 8px); width:230px; padding:14px; background:#111a34; border:1px solid rgba(164,184,255,.25); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.4); }
     .settings-menu label { display:block; margin:0 0 10px; }
     .settings-menu select { display:block; width:100%; margin-top:5px; background:#0b1228; color:#f3f5ff; border:1px solid #46557c; border-radius:6px; padding:9px; }
@@ -53,6 +54,8 @@
     .game-controls { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:14px 20px; border-top:1px solid var(--line); }
     .control-hint { color:var(--muted); font-size:12px; line-height:1.5; } .control-hint kbd { display:inline-block; padding:2px 6px; margin:0 2px; border:1px solid var(--line); border-radius:4px; color:inherit; font:inherit; }
     .pause-button { padding:8px 12px; } .touch-controls { display:none; gap:12px; justify-content:center; padding:12px; }
+    .reset-progress { background:#a94363; }
+    .reset-progress:hover { background:#c25274; }
     .touch-controls button { width:76px; height:50px; font-size:20px; touch-action:none; user-select:none; }
     .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
     :root[data-theme="light"] body { background:linear-gradient(160deg,#f3f6ff,#e5ecfb 55%,#eee9ff); color:#202945; }
@@ -69,7 +72,10 @@
   </style>
   <script>
     try {
-      if (sessionStorage.getItem("superstar-authenticated") !== "1") window.location.replace("/");
+      const session = JSON.parse(sessionStorage.getItem("superstar-session"));
+      if (sessionStorage.getItem("superstar-authenticated") !== "1" ||
+          !session || !["admin", "user", "guest"].includes(session.role) ||
+          typeof session.sessionToken !== "string") window.location.replace("/");
     } catch {
       window.location.replace("/");
     }
@@ -86,6 +92,7 @@
     </div></details>
   </header>
   <main>
+    <p id="saveStatus" aria-live="polite">Progress saves to your login code</p>
     <div class="game-tabs" role="tablist" aria-label="Choose a game"><button type="button" role="tab" id="classicTab" aria-selected="true" aria-controls="classicGame">The Drop</button><button type="button" role="tab" id="skyTab" aria-selected="false" aria-controls="skyGame" tabindex="-1">Skyfall 3D</button></div>
     <div class="game-panel" id="classicGame" role="tabpanel" aria-labelledby="classicTab">
     <section class="intro" aria-labelledby="games-heading"><div><div class="eyebrow">Superstar arcade · game 01</div><h2 id="games-heading">The Drop</h2><p>One tiny diver. Fifty floors. Find the gap and keep falling.</p></div>
@@ -101,7 +108,7 @@
         <div class="sr-only" id="gameAnnouncement" aria-live="polite"></div>
       </div>
       <div class="touch-controls" aria-label="Touch controls"><button type="button" data-direction="left" aria-label="Move left">←</button><button type="button" data-direction="right" aria-label="Move right">→</button></div>
-      <div class="game-controls"><div class="control-hint"><kbd>←</kbd><kbd>→</kbd> or <kbd>A</kbd><kbd>D</kbd> to steer · <kbd>Space</kbd> to pause</div><div><button type="button" class="pause-button" id="pauseButton" aria-label="Pause game">Pause</button></div></div>
+      <div class="game-controls"><div class="control-hint"><kbd>←</kbd><kbd>→</kbd> or <kbd>A</kbd><kbd>D</kbd> to steer · <kbd>Space</kbd> to pause</div><div><button type="button" class="reset-progress" id="resetDropper">Reset progress</button><button type="button" class="pause-button" id="pauseButton" aria-label="Pause game">Pause</button></div></div>
     </section>
     </div>
     <section class="game-panel" id="skyGame" role="tabpanel" aria-labelledby="skyTab" hidden>
@@ -118,10 +125,95 @@
           <div class="sr-only" id="skyAnnouncement" aria-live="polite"></div>
         </div>
         <div class="touch-controls sky-touch-controls" aria-label="Skyfall movement controls"><button type="button" data-move="left" aria-label="Move left">←</button><button type="button" data-move="up" aria-label="Move up">↑</button><button type="button" data-move="down" aria-label="Move down">↓</button><button type="button" data-move="right" aria-label="Move right">→</button></div>
-        <div class="game-controls"><div class="control-hint"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrow keys to dodge <span aria-hidden="true">·</span> <kbd>Space</kbd> to pause</div><div><button type="button" class="pause-button" id="skyPause" aria-label="Pause Skyfall 3D">Pause</button></div></div>
+        <div class="game-controls"><div class="control-hint"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrow keys to dodge <span aria-hidden="true">·</span> <kbd>Space</kbd> to pause</div><div><button type="button" class="reset-progress" id="resetSkyfall">Reset progress</button><button type="button" class="pause-button" id="skyPause" aria-label="Pause Skyfall 3D">Pause</button></div></div>
       </section>
     </section>
   </main>
+  <script>
+    window.SuperstarGameSaves = (() => {
+      let session;
+      try { session = JSON.parse(sessionStorage.getItem("superstar-session")); } catch { session = null; }
+      const status = document.getElementById("saveStatus");
+      let saveQueue = Promise.resolve();
+
+      function mergeProgress(cloud, local) {
+        const bestTimes = { ...cloud.bestTimes };
+        for (const [level, seconds] of Object.entries(local.bestTimes)) {
+          if (!bestTimes[level] || seconds < bestTimes[level]) bestTimes[level] = seconds;
+        }
+        return { unlocked: Math.max(cloud.unlocked, local.unlocked), bestTimes };
+      }
+
+      async function request(url, options = {}) {
+        const response = await fetch(url, {
+          ...options,
+          headers: { "Authorization": `Bearer ${session?.sessionToken || ""}`, ...(options.headers || {}) }
+        });
+        if (!response.ok) throw new Error((await response.json()).error || "Could not sync game progress");
+        return response.json();
+      }
+
+      function setStatus(message) {
+        status.textContent = message;
+      }
+
+      async function load(game, localProgress) {
+        try {
+          setStatus("Loading saved progress…");
+          const allProgress = await request("/game-save");
+          const migrationKey = `superstar-${game}-account-migrated-v1`;
+          const migrateLocal = localStorage.getItem(migrationKey) !== "1";
+          const merged = mergeProgress(allProgress[game], migrateLocal ? localProgress : { unlocked: 1, bestTimes: {} });
+          await request("/game-save", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ game, progress: merged })
+          });
+          localStorage.setItem(migrationKey, "1");
+          setStatus("Progress saves to your login code");
+          return merged;
+        } catch (error) {
+          console.error("Could not load cloud game progress:", error);
+          setStatus("Cloud sync unavailable; progress is saved on this browser.");
+          return localProgress;
+        }
+      }
+
+      function save(game, progress) {
+        saveQueue = saveQueue.then(async () => {
+          try {
+            setStatus("Saving progress…");
+            await request("/game-save", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ game, progress })
+            });
+            setStatus("Progress saves to your login code");
+          } catch (error) {
+            console.error("Could not save cloud game progress:", error);
+            setStatus("Cloud save failed; progress remains on this browser.");
+          }
+        });
+        return saveQueue;
+      }
+
+      function reset(game) {
+        saveQueue = saveQueue.catch(() => {}).then(async () => {
+          setStatus("Resetting game progress…");
+          const response = await fetch(`/game-save/${encodeURIComponent(game)}`, {
+            method: "DELETE",
+            headers: { "Authorization": `Bearer ${session?.sessionToken || ""}` }
+          });
+          if (!response.ok) throw new Error((await response.json()).error || "Could not reset game progress");
+          localStorage.setItem(`superstar-${game}-account-migrated-v1`, "1");
+          setStatus("Game progress reset");
+        });
+        return saveQueue;
+      }
+
+      return { load, save, reset };
+    })();
+  </script>
   <script src="/starfield.js" defer></script><script src="/dropper.js" defer></script><script src="/dropper3d.js" defer></script>
 </body>
 </html>

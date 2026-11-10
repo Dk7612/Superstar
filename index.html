@@ -25,6 +25,7 @@
     button.reset { background:#a94363; color:white;}
     input, select { background:#0b1228; color:#f3f5ff; border:1px solid #46557c; border-radius:6px; padding:9px; }
     .table-wrap { overflow-x:auto; }
+    .user-name-input { width:min(190px, 100%); margin:4px; }
     table { border-collapse:collapse; width:100%; min-width:700px; background:rgba(8,13,32,.35); }
     th, td { padding:8px; border-bottom:1px solid rgba(190,205,255,.18); text-align:left; }
     .notice { color:#b7c1df; }
@@ -183,6 +184,32 @@ document.getElementById("loginForm").addEventListener("submit", event => {
   login();
 });
 
+function showAuthenticatedDashboard(session) {
+  role = session.role;
+  adminToken = session.adminToken || "";
+  document.body.classList.remove("logged-out");
+  document.body.classList.add("authenticated");
+  document.getElementById("loginCard").style.display = "none";
+  document.getElementById("welcomePanel").style.display = "block";
+  document.getElementById("welcomeMessage").textContent = `Signed in as ${role}. Enjoy the stars.`;
+  if (role === "admin") showAdminPanel();
+}
+
+function restoreSession() {
+  try {
+    if (sessionStorage.getItem("superstar-authenticated") !== "1") return;
+    const session = JSON.parse(sessionStorage.getItem("superstar-session"));
+    if (!session || !["admin", "user", "guest"].includes(session.role) ||
+        typeof session.sessionToken !== "string" ||
+        (session.role === "admin" && typeof session.adminToken !== "string")) return;
+    showAuthenticatedDashboard(session);
+  } catch {
+    // Keep the login page available when session storage is disabled or invalid.
+  }
+}
+
+restoreSession();
+
 async function login() {
   const code = document.getElementById("codeInput").value;
   const deviceID = getDeviceID();
@@ -192,15 +219,14 @@ async function login() {
   });
   const data = await res.json();
   if(!data.ok) return alert(data.error);
-  role = data.role;
-  adminToken = data.adminToken || "";
-  document.body.classList.remove("logged-out");
-  document.body.classList.add("authenticated");
-  try { sessionStorage.setItem("superstar-authenticated", "1"); } catch { /* Page navigation still works if session storage is disabled. */ }
-  document.getElementById("loginCard").style.display = "none";
-  document.getElementById("welcomePanel").style.display = "block";
-  document.getElementById("welcomeMessage").textContent = `Signed in as ${role}. Enjoy the stars.`;
-  if(role === "admin") showAdminPanel();
+  const session = { role: data.role, sessionToken: data.sessionToken, adminToken: data.adminToken || "" };
+  try {
+    sessionStorage.setItem("superstar-session", JSON.stringify(session));
+    sessionStorage.setItem("superstar-authenticated", "1");
+  } catch {
+    // Keep the current page usable if session storage is unavailable.
+  }
+  showAuthenticatedDashboard(session);
 }
 
 function showAdminPanel() {
@@ -248,8 +274,30 @@ async function loadUsers() {
     button.textContent = "Reset Device";
     button.addEventListener("click", () => resetDevice(code));
     li.appendChild(button);
+    const nameLabel = document.createElement("span");
+    nameLabel.textContent = ` Name: ${user.name || "not set"} `;
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.maxLength = 40;
+    nameInput.className = "user-name-input";
+    nameInput.placeholder = "Name for this code";
+    nameInput.setAttribute("aria-label", `Name for code ${code}`);
+    nameInput.value = user.name || "";
+    const saveNameButton = document.createElement("button");
+    saveNameButton.type = "button";
+    saveNameButton.textContent = "Save name";
+    saveNameButton.addEventListener("click", () => saveUserName(code, nameInput.value));
+    li.append(nameLabel, nameInput, saveNameButton);
     list.appendChild(li);
   }
+}
+
+async function saveUserName(code, name) {
+  const res = await fetch("/admin/user-name", {
+    method: "POST", headers: adminHeaders(true), body: JSON.stringify({ code, name: name.trim() })
+  });
+  if (!res.ok) return alert((await res.json()).error || "Could not save account name.");
+  loadUsers();
 }
 
 async function resetDevice(code) {

@@ -15,14 +15,35 @@
   const stars = Array.from({ length: 60 }, (_, i) => ({ x: (i * 197 + 31) % WIDTH, y: (i * 281 + 17) % HEIGHT, size: i % 6 === 0 ? 2 : 1 }));
   let level = 1, unlocked = 1, stage, state = "ready", playerX = 0, playerY = 0, distance = 0, elapsed = 0, lastFrame = 0, lastHud = 0, fallRotation = 0;
 
-  function loadSaved() {
+  async function loadSaved() {
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
       if (saved && Number.isInteger(saved.unlocked)) unlocked = Math.max(1, Math.min(LEVELS, saved.unlocked));
     } catch { unlocked = 1; }
+    const bestTimes = readBestTimes();
+    const saved = await window.SuperstarGameSaves.load("skyfall3d", { unlocked, bestTimes });
+    unlocked = Math.max(1, Math.min(LEVELS, saved.unlocked));
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ unlocked })); } catch { /* Continue without local progress caching. */ }
+    for (let n = 1; n <= LEVELS; n++) {
+      try { localStorage.removeItem(`superstar-skyfall-best-${n}`); } catch { break; }
+    }
+    for (const [level, seconds] of Object.entries(saved.bestTimes)) {
+      try { localStorage.setItem(`superstar-skyfall-best-${level}`, String(seconds)); } catch { /* Best times are optional. */ }
+    }
+  }
+  function readBestTimes() {
+    const bestTimes = {};
+    for (let n = 1; n <= LEVELS; n++) {
+      try {
+        const value = Number(localStorage.getItem(`superstar-skyfall-best-${n}`));
+        if (Number.isFinite(value) && value > 0) bestTimes[n] = value;
+      } catch { break; }
+    }
+    return bestTimes;
   }
   function saveProgress() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ unlocked })); } catch { /* Continue without persistent progress. */ }
+    window.SuperstarGameSaves.save("skyfall3d", { unlocked, bestTimes: readBestTimes() });
   }
   function bestFor(n) {
     try { const value = Number(localStorage.getItem(`superstar-skyfall-best-${n}`)); return Number.isFinite(value) && value > 0 ? value : null; }
@@ -32,6 +53,7 @@
     const old = bestFor(n);
     if (old !== null && old <= seconds) return old;
     try { localStorage.setItem(`superstar-skyfall-best-${n}`, String(seconds)); } catch { /* Best times are optional. */ }
+    saveProgress();
     return seconds;
   }
   function rng(seed) {
@@ -267,6 +289,18 @@
   }
   $("skyAction").addEventListener("click", action);
   $("skyPause").addEventListener("click", pause);
+  $("resetSkyfall").addEventListener("click", async () => {
+    if (!window.confirm("Reset Skyfall 3D progress for your login code? This clears all unlocked levels and best times for this game.")) return;
+    try {
+      await window.SuperstarGameSaves.reset("skyfall3d");
+      localStorage.removeItem(STORAGE_KEY);
+      for (let n = 1; n <= LEVELS; n++) localStorage.removeItem(`superstar-skyfall-best-${n}`);
+      window.location.reload();
+    } catch (error) {
+      console.error("Could not reset Skyfall 3D progress:", error);
+      window.alert(error.message);
+    }
+  });
   levelSelect.addEventListener("change", () => loadLevel(Number(levelSelect.value)));
   document.addEventListener("arcade-tab-change", event => {
     if (event.detail !== "sky" && state === "playing") pause();
@@ -284,5 +318,9 @@
     $("skyGame").hidden = false; $("classicGame").hidden = true;
     document.dispatchEvent(new CustomEvent("arcade-tab-change", { detail: "sky" }));
   });
-  loadSaved(); renderLevels(); loadLevel(1); requestAnimationFrame(frame);
+  async function initialize() {
+    await loadSaved();
+    renderLevels(); loadLevel(1); requestAnimationFrame(frame);
+  }
+  initialize().catch(error => console.error("Could not initialize Skyfall 3D:", error));
 })();
