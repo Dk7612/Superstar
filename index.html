@@ -195,6 +195,7 @@
 let role = "";
 let adminToken = "";
 let pendingBan = null;
+let adminRecovery = null;
 
 function adminHeaders(json = false) {
   const headers = { "Authorization": `Bearer ${adminToken}` };
@@ -207,6 +208,64 @@ function getDeviceID() {
   let id = localStorage.getItem("device-id");
   if(!id) { id = crypto.randomUUID(); localStorage.setItem("device-id", id);}
   return id;
+}
+
+async function recoverAdminSession() {
+  if (adminRecovery) return adminRecovery;
+  adminRecovery = (async () => {
+    try {
+      const res = await fetch("/session/restore", {
+        headers: { "X-Device-ID": getDeviceID() },
+        credentials: "same-origin"
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (!data.ok || data.role !== "admin" ||
+          typeof data.sessionToken !== "string" ||
+          typeof data.adminToken !== "string") return false;
+      const session = { role: data.role, sessionToken: data.sessionToken, adminToken: data.adminToken };
+      try {
+        sessionStorage.setItem("superstar-session", JSON.stringify(session));
+        sessionStorage.setItem("superstar-authenticated", "1");
+      } catch {
+        // Keep the refreshed token available to requests on this page.
+      }
+      role = session.role;
+      adminToken = session.adminToken;
+      return true;
+    } catch (error) {
+      console.error("Could not restore trusted admin session:", error);
+      return false;
+    }
+  })();
+  try {
+    return await adminRecovery;
+  } finally {
+    adminRecovery = null;
+  }
+}
+
+async function adminFetch(url, options = {}) {
+  const headers = new Headers(options.headers || {});
+  const send = () => {
+    headers.set("Authorization", `Bearer ${adminToken}`);
+    return fetch(url, { ...options, headers, credentials: "same-origin" });
+  };
+  let res = await send();
+  if (res.status !== 401 && res.status !== 403) return res;
+  if (await recoverAdminSession()) {
+    res = await send();
+    if (res.status !== 401 && res.status !== 403) return res;
+  }
+  try {
+    sessionStorage.setItem("superstar-session-expired", "1");
+    sessionStorage.removeItem("superstar-session");
+    sessionStorage.removeItem("superstar-authenticated");
+  } catch {
+    // Reloading also clears the in-memory token.
+  }
+  window.location.reload();
+  return res;
 }
 
 // --- Login / Dashboard ---
@@ -248,7 +307,7 @@ document.getElementById("acceptCookies").addEventListener("click", async () => {
   const button = document.getElementById("acceptCookies");
   button.disabled = true;
   try {
-    const response = await fetch("/session/trusted-device/enroll", {
+    const response = await adminFetch("/session/trusted-device/enroll", {
       method: "POST",
       headers: { ...adminHeaders(), "X-Device-ID": getDeviceID() },
       credentials: "same-origin"
@@ -329,27 +388,9 @@ function restoreSession() {
 }
 
 async function restoreTrustedAdminSession() {
-  try {
-    const res = await fetch("/session/restore", {
-      headers: { "X-Device-ID": getDeviceID() },
-      credentials: "same-origin"
-    });
-    if (!res.ok) return;
-    const data = await res.json();
-    if (!data.ok || data.role !== "admin" ||
-        typeof data.sessionToken !== "string" ||
-        typeof data.adminToken !== "string") return;
-    const session = { role: data.role, sessionToken: data.sessionToken, adminToken: data.adminToken };
-    try {
-      sessionStorage.setItem("superstar-session", JSON.stringify(session));
-      sessionStorage.setItem("superstar-authenticated", "1");
-    } catch {
-      // The current page can still use the in-memory session.
-    }
-    showAuthenticatedDashboard(session, true);
-  } catch (error) {
-    console.error("Could not restore trusted admin session:", error);
-  }
+  if (!await recoverAdminSession()) return;
+  const session = JSON.parse(sessionStorage.getItem("superstar-session") || "null");
+  if (session) showAuthenticatedDashboard(session, true);
 }
 
 if (!restoreSession() && cookieConsentChoice === "allow") restoreTrustedAdminSession();
@@ -383,7 +424,7 @@ function showAdminPanel() {
 
 async function generateCode() {
   const code = document.getElementById("customCodeInput").value;
-  const res = await fetch("/generate", {
+  const res = await adminFetch("/generate", {
     method:"POST", headers:adminHeaders(true),
     body: JSON.stringify({role: "guest", code})
   });
@@ -395,7 +436,7 @@ async function generateCode() {
 }
 
 async function loadUsers() {
-  const res = await fetch("/admin/users", { headers:adminHeaders()});
+  const res = await adminFetch("/admin/users", { headers:adminHeaders()});
   if (!res.ok) return alert("Could not load users.");
   const users = await res.json();
   const list = document.getElementById("userList");
@@ -438,7 +479,7 @@ async function loadUsers() {
 }
 
 async function saveUserName(code, name) {
-  const res = await fetch("/admin/user-name", {
+  const res = await adminFetch("/admin/user-name", {
     method: "POST", headers: adminHeaders(true), body: JSON.stringify({ code, name: name.trim() })
   });
   if (!res.ok) return alert((await res.json()).error || "Could not save account name.");
@@ -446,7 +487,7 @@ async function saveUserName(code, name) {
 }
 
 async function resetDevice(code) {
-  await fetch("/admin/reset", {
+  await adminFetch("/admin/reset", {
     method:"POST", headers:adminHeaders(true),
     body: JSON.stringify({code})
   });
@@ -454,7 +495,7 @@ async function resetDevice(code) {
 }
 
 async function loadLogins() {
-  const res = await fetch("/admin/logins", { headers:adminHeaders()});
+  const res = await adminFetch("/admin/logins", { headers:adminHeaders()});
   if (!res.ok) return alert("Could not load login history.");
   const logins = await res.json();
   const list = document.getElementById("loginList");
@@ -516,7 +557,7 @@ document.getElementById("confirmBan").addEventListener("click", async () => {
   const banRequest = pendingBan;
   pendingBan = null;
   document.getElementById("banDialog").close();
-  const res = await fetch("/admin/bans", {
+  const res = await adminFetch("/admin/bans", {
     method:"POST", headers:adminHeaders(true), body:JSON.stringify(banRequest)
   });
   if (!res.ok) return alert((await res.json()).error || "Could not apply ban.");
@@ -524,7 +565,7 @@ document.getElementById("confirmBan").addEventListener("click", async () => {
 });
 
 async function unban(type, value) {
-  const res = await fetch("/admin/bans", {
+  const res = await adminFetch("/admin/bans", {
     method:"DELETE", headers:adminHeaders(true), body:JSON.stringify({type, value})
   });
   if (!res.ok) return alert((await res.json()).error || "Could not remove ban.");
@@ -532,7 +573,7 @@ async function unban(type, value) {
 }
 
 async function loadBans() {
-  const res = await fetch("/admin/bans", { headers:adminHeaders()});
+  const res = await adminFetch("/admin/bans", { headers:adminHeaders()});
   if (!res.ok) return alert("Could not load bans.");
   const bans = await res.json();
   renderBans("bannedIps", "ip", bans.ips);

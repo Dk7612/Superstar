@@ -24,12 +24,12 @@ if (!adminCode) {
 
 const users = Object.create(null);
 users[adminCode] = { role: "admin", lockedDevice: null };
-const adminTokens = new Set();
 const sessionTokens = new Map();
 const MAX_LOGIN_HISTORY = 500;
 const MAX_TRUSTED_ADMIN_DEVICES = 20;
 const TRUSTED_ADMIN_COOKIE = "superstar_admin_trust";
 const TRUSTED_ADMIN_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
+const SESSION_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
 const dataDirectory = process.env.DATA_DIR || path.join(__dirname, "data");
 const dataFile = path.join(dataDirectory, "service-data.json");
 
@@ -65,6 +65,7 @@ function loadPersistentState() {
         (saved.generatedUsers !== undefined && !Array.isArray(saved.generatedUsers)) ||
         (saved.lockedDevices !== undefined && !Array.isArray(saved.lockedDevices)) ||
         (saved.trustedAdminDevices !== undefined && !Array.isArray(saved.trustedAdminDevices)) ||
+        (saved.authSessions !== undefined && !Array.isArray(saved.authSessions)) ||
         (saved.gameSaves !== undefined && (!saved.gameSaves || typeof saved.gameSaves !== "object" || Array.isArray(saved.gameSaves))) ||
         (saved.accountNames !== undefined && (!saved.accountNames || typeof saved.accountNames !== "object" || Array.isArray(saved.accountNames)))) {
       throw new Error("Stored service data has an invalid format");
@@ -127,6 +128,18 @@ function loadPersistentState() {
         trustedAdminDevices.push(trustedDevice);
       }
     }
+    const authSessions = [];
+    for (const session of saved.authSessions || []) {
+      if (!session || typeof session.tokenHash !== "string" || !/^[a-f0-9]{64}$/.test(session.tokenHash) ||
+          typeof session.code !== "string" || !session.code ||
+          !Number.isInteger(session.expiresAt) || session.expiresAt <= 0) {
+        throw new Error("Stored authentication sessions have an invalid format");
+      }
+      if ((session.code === adminCode || Object.prototype.hasOwnProperty.call(generatedUsers, session.code)) &&
+          session.expiresAt > Date.now()) {
+        authSessions.push(session);
+      }
+    }
     return {
       loginHistory: saved.loginHistory.slice(-MAX_LOGIN_HISTORY).map(login => {
         if (login?.code === adminCode) return { ...login, role: "admin" };
@@ -142,11 +155,12 @@ function loadPersistentState() {
       lockedDevices,
       gameSaves,
       accountNames,
-      trustedAdminDevices
+      trustedAdminDevices,
+      authSessions
     };
   } catch (error) {
     if (error.code === "ENOENT") {
-      return { loginHistory: [], bannedDevices: new Set(), bannedIps: new Set(), generatedUsers: Object.create(null), generatedUserOrder: [], lockedDevices: [], gameSaves: Object.create(null), accountNames: Object.create(null), trustedAdminDevices: [] };
+      return { loginHistory: [], bannedDevices: new Set(), bannedIps: new Set(), generatedUsers: Object.create(null), generatedUserOrder: [], lockedDevices: [], gameSaves: Object.create(null), accountNames: Object.create(null), trustedAdminDevices: [], authSessions: [] };
     }
     throw error;
   }
@@ -167,8 +181,14 @@ const bannedIps = persistentState.bannedIps;
 const gameSaves = persistentState.gameSaves;
 const accountNames = persistentState.accountNames;
 const trustedAdminDevices = persistentState.trustedAdminDevices;
+for (const session of persistentState.authSessions) {
+  sessionTokens.set(session.tokenHash, { code: session.code, expiresAt: session.expiresAt });
+}
 
 function savePersistentState() {
+  for (const [tokenHash, session] of sessionTokens) {
+    if (session.expiresAt <= Date.now() || !users[session.code]) sessionTokens.delete(tokenHash);
+  }
   const temporaryFile = `${dataFile}.tmp`;
   fs.writeFileSync(temporaryFile, JSON.stringify({
     loginHistory,
@@ -182,7 +202,12 @@ function savePersistentState() {
       .map(([code, user]) => ({ code, deviceID: user.lockedDevice })),
     gameSaves,
     accountNames,
-    trustedAdminDevices
+    trustedAdminDevices,
+    authSessions: Array.from(sessionTokens, ([tokenHash, session]) => ({
+      tokenHash,
+      code: session.code,
+      expiresAt: session.expiresAt
+    }))
   }, null, 2), { encoding: "utf8", mode: 0o600 });
   fs.renameSync(temporaryFile, dataFile);
 }
@@ -193,7 +218,8 @@ function normalizeIp(ip) {
 
 function requireAdmin(req, res, next) {
   const token = req.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (!token || !adminTokens.has(token)) {
+  const session = token && sessionTokens.get(hashTrustedToken(token));
+  if (!session || session.expiresAt <= Date.now() || session.code !== adminCode || users[session.code]?.role !== "admin") {
     return res.status(403).json({ error: "Admin access required" });
   }
   next();
@@ -201,9 +227,11 @@ function requireAdmin(req, res, next) {
 
 function requireSession(req, res, next) {
   const token = req.get("authorization")?.replace(/^Bearer\s+/i, "");
-  const code = token && sessionTokens.get(token);
-  if (!code || !users[code]) return res.status(401).json({ error: "Sign in again to sync game progress" });
-  req.userCode = code;
+  const session = token && sessionTokens.get(hashTrustedToken(token));
+  if (!session || session.expiresAt <= Date.now() || !users[session.code]) {
+    return res.status(401).json({ error: "Sign in again to sync game progress" });
+  }
+  req.userCode = session.code;
   next();
 }
 
@@ -228,12 +256,18 @@ function hashTrustedToken(token) {
 
 function issueSessionTokens(code) {
   const sessionToken = crypto.randomBytes(32).toString("hex");
-  sessionTokens.set(sessionToken, code);
-  const response = { role: users[code].role, sessionToken };
-  if (users[code].role === "admin") {
-    adminTokens.add(sessionToken);
-    response.adminToken = sessionToken;
+  const tokenHash = hashTrustedToken(sessionToken);
+  const session = { code, expiresAt: Date.now() + SESSION_MAX_AGE };
+  sessionTokens.set(tokenHash, session);
+  try {
+    savePersistentState();
+  } catch (error) {
+    sessionTokens.delete(tokenHash);
+    console.error("Could not save authentication session:", error);
+    throw new Error("Could not save login session");
   }
+  const response = { role: users[code].role, sessionToken };
+  if (users[code].role === "admin") response.adminToken = sessionToken;
   return response;
 }
 
@@ -365,7 +399,11 @@ app.get("/session/restore", (req, res) => {
     ...trustedAdminCookieOptions(req),
     maxAge: TRUSTED_ADMIN_MAX_AGE
   });
-  res.json({ ok: true, ...issueSessionTokens(adminCode), remembered: true });
+  try {
+    res.json({ ok: true, ...issueSessionTokens(adminCode), remembered: true });
+  } catch {
+    res.status(500).json({ ok: false, error: "Could not save login session" });
+  }
 });
 
 app.get("/game-save", requireSession, (req, res) => {
@@ -470,11 +508,15 @@ app.post("/login", (req, res) => {
   } else if (readCookie(req, TRUSTED_ADMIN_COOKIE) && !revokeTrustedAdminCookie(req, res)) {
     return res.status(500).json({ ok: false, error: "Could not revoke trusted admin device" });
   }
-  res.json({
-    ok: true,
-    ...issueSessionTokens(code),
-    remembered: user.role === "admin" && body.rememberDevice === true
-  });
+  try {
+    res.json({
+      ok: true,
+      ...issueSessionTokens(code),
+      remembered: user.role === "admin" && body.rememberDevice === true
+    });
+  } catch {
+    res.status(500).json({ ok: false, error: "Could not save login session" });
+  }
 });
 
 app.post("/generate", requireAdmin, (req, res) => {

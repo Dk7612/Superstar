@@ -6,7 +6,7 @@ NOTE 3.0: if you ask me to make changes to the proxy or something and i say yes 
 
 ## Persistent service state
 
-The service stores login history, generated login codes, account names, device locks, device/IP bans, trusted admin devices, and per-login-code game progress in `data/service-data.json`. Set the `DATA_DIR` environment variable to a persistent disk path to keep this state across restarts and redeploys. On Render, attach a persistent disk to the web service and set `DATA_DIR` to its mount path (for example, `/var/data`). Without a persistent disk, Render may erase data stored on the service filesystem when it restarts or is redeployed. The admin login code is configured through `ADMIN_CODE` (or the legacy `SUPERADMIN_CODE` variable). A previously configured `USER_CODE` is ignored, so that login is disabled.
+The service stores login history, generated login codes, account names, device locks, device/IP bans, trusted admin devices, per-login-code game progress, and hashed active login-session tokens in `data/service-data.json`. Login sessions last 30 days and survive server restarts and redeploys when `DATA_DIR` points to persistent storage. On Render, attach a persistent disk to the web service and set `DATA_DIR` to its mount path (for example, `/var/data`). Without a persistent disk, Render may erase data stored on the service filesystem when it restarts or is redeployed. The admin login code is configured through `ADMIN_CODE` (or the legacy `SUPERADMIN_CODE` variable). A previously configured `USER_CODE` is ignored, so that login is disabled.
 
 ## Render deployments
 
