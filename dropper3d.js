@@ -12,7 +12,7 @@
   const SHAFT = { left: -4.7, right: 4.7, bottom: -3.25, top: 3.25 };
   const STORAGE_KEY = "superstar-skyfall-progress-v1";
   const keys = { left: false, right: false, up: false, down: false };
-  let level = 1, unlocked = 1, stage, state = "ready", playerX = 0, playerY = 0, distance = 0, elapsed = 0, lastFrame = 0, lastHud = 0, cameraYaw = 0, cameraPitch = .18;
+  let level = 1, unlocked = 1, stage, state = "ready", playerX = 0, playerY = 0, distance = 0, elapsed = 0, lastFrame = 0, lastHud = 0, cameraYaw = 0, cameraPitch = .18, characterYaw = 0;
   let physicsWorld, playerBody;
 
   if (!Physics3D) {
@@ -244,7 +244,7 @@
     const opening = 1.55, deckY = 0, deckHeight = .42;
     addBoxCollider(
       { x: (SHAFT.left - opening) / 2, y: deckY, z: 0 },
-      { x: opening - SHAFT.left, y: deckHeight, z: SHAFT.top - SHAFT.bottom },
+      { x: -opening - SHAFT.left, y: deckHeight, z: SHAFT.top - SHAFT.bottom },
       { kind: "start-platform" }
     );
     addBoxCollider(
@@ -253,14 +253,14 @@
       { kind: "start-platform" }
     );
     addBoxCollider(
-      { x: 0, y: deckY, z: (SHAFT.bottom - opening) / 2 },
-      { x: opening * 2, y: deckHeight, z: opening - SHAFT.bottom },
-      { kind: "start-platform" }
-    );
-    addBoxCollider(
       { x: 0, y: deckY, z: (SHAFT.top + opening) / 2 },
       { x: opening * 2, y: deckHeight, z: SHAFT.top - opening },
       { kind: "start-platform" }
+    );
+    addBoxCollider(
+      { x: 0, y: deckY, z: .85 },
+      { x: 1.6, y: deckHeight, z: 1.4 },
+      { kind: "start-runway" }
     );
 
     for (const gate of stage.gates) {
@@ -286,7 +286,7 @@
     playerBody = physicsWorld.addBody({
       type: "dynamic",
       shape: "box",
-      position: { x: 0, y: .95, z: 0 },
+      position: { x: 0, y: .95, z: 1.15 },
       halfExtents: { x: .38, y: .72, z: .38 },
       mass: 1,
       friction: .65,
@@ -339,9 +339,9 @@
   }
   function loadLevel(n) {
     level = Math.max(1, Math.min(unlocked, n)); stage = createStage(level);
-    elapsed = 0; cameraYaw = 0; cameraPitch = .32; state = "ready";
+    elapsed = 0; cameraYaw = 0; cameraPitch = .32; characterYaw = 0; state = "ready";
     buildPhysicsWorld();
-    show(`LEVEL ${String(level).padStart(2, "0")} · ${LEVELS}`, "Ready to jump?", "You are on the starting platform. Drop through its opening, then dodge the neon gates. Drag the view to look around.", `Start level ${level}`);
+    show(`LEVEL ${String(level).padStart(2, "0")} · ${LEVELS}`, "Ready to jump?", "You are standing on the platform. Move forward into its opening, then dodge the neon gates. Drag the view to turn your character and change direction.", `Start level ${level}`);
     $("skyAnnouncement").textContent = `Skyfall level ${level} ready.`; updateHud();
   }
   function start() {
@@ -378,10 +378,18 @@
   }
   function clearKeys() { for (const direction of Object.keys(keys)) keys[direction] = false; }
   function update(dt) {
+    const yawDelta = Math.atan2(Math.sin(cameraYaw - characterYaw), Math.cos(cameraYaw - characterYaw));
+    characterYaw += yawDelta * Math.min(1, dt * 12);
     if (state !== "playing") return;
     elapsed += dt;
-    playerBody.velocity.x = (Number(keys.right) - Number(keys.left)) * stage.steer;
-    playerBody.velocity.z = (Number(keys.down) - Number(keys.up)) * stage.steer;
+    const forwardInput = Number(keys.up) - Number(keys.down);
+    const strafeInput = Number(keys.right) - Number(keys.left);
+    const inputLength = Math.hypot(forwardInput, strafeInput) || 1;
+    const forward = forwardInput / inputLength;
+    const strafe = strafeInput / inputLength;
+    const sinYaw = Math.sin(cameraYaw), cosYaw = Math.cos(cameraYaw);
+    playerBody.velocity.x = (-sinYaw * forward + cosYaw * strafe) * stage.steer;
+    playerBody.velocity.z = (-cosYaw * forward - sinYaw * strafe) * stage.steer;
     physicsWorld.step(dt);
     syncPlayerPosition();
     if (state !== "playing") return;
@@ -431,12 +439,14 @@
       x, y, z, 1
     ]);
   }
-  function rotatedModelMatrix(x, y, z, sx, sy, sz, rotation) {
-    const cosine = Math.cos(rotation), sine = Math.sin(rotation);
+  function rotatedModelMatrix(x, y, z, sx, sy, sz, rotationZ, rotationX = 0, yaw = 0) {
+    const cosZ = Math.cos(rotationZ), sinZ = Math.sin(rotationZ);
+    const cosX = Math.cos(rotationX), sinX = Math.sin(rotationX);
+    const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
     return new Float32Array([
-      cosine * sx, sine * sx, 0, 0,
-      -sine * sy, cosine * sy, 0, 0,
-      0, 0, sz, 0,
+      cosY * cosZ * sx, sinZ * sx, -sinY * cosZ * sx, 0,
+      (-cosY * sinZ * cosX + sinY * sinX) * sy, cosZ * cosX * sy, (sinY * sinZ * cosX + cosY * sinX) * sy, 0,
+      (cosY * sinZ * sinX + sinY * cosX) * sz, -cosZ * sinX * sz, (-sinY * sinZ * sinX + cosY * cosX) * sz, 0,
       x, y, z, 1
     ]);
   }
@@ -465,13 +475,13 @@
     setColor(color);
     gl.drawArrays(gl.TRIANGLES, 0, mesh.count);
   }
-  function drawBox(x, y, z, sx, sy, sz, color, rotation = 0) {
+  function drawBox(x, y, z, sx, sy, sz, color, rotationZ = 0, rotationX = 0, yaw = 0) {
     gl.bindBuffer(gl.ARRAY_BUFFER, cubeMesh.buffer);
     gl.enableVertexAttribArray(positionLocation);
     gl.enableVertexAttribArray(normalLocation);
     gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 24, 0);
     gl.vertexAttribPointer(normalLocation, 3, gl.FLOAT, false, 24, 12);
-    gl.uniformMatrix4fv(modelLocation, false, rotatedModelMatrix(x, y, z, sx, sy, sz, rotation));
+    gl.uniformMatrix4fv(modelLocation, false, rotatedModelMatrix(x, y, z, sx, sy, sz, rotationZ, rotationX, yaw));
     setColor(color);
     gl.drawArrays(gl.TRIANGLES, 0, cubeMesh.count);
   }
@@ -516,10 +526,12 @@
   function drawStartPlatform() {
     if (distance > 24) return;
     const y = 0, opening = 1.55, deck = [.24, .33, .57], edge = [.25, .92, 1];
-    drawBox((SHAFT.left - opening) / 2, y, 0, opening - SHAFT.left, .42, SHAFT.top - SHAFT.bottom, deck);
+    drawBox((SHAFT.left - opening) / 2, y, 0, -opening - SHAFT.left, .42, SHAFT.top - SHAFT.bottom, deck);
     drawBox((SHAFT.right + opening) / 2, y, 0, SHAFT.right - opening, .42, SHAFT.top - SHAFT.bottom, deck);
-    drawBox(0, y, (SHAFT.bottom - opening) / 2, opening * 2, .42, opening - SHAFT.bottom, deck);
     drawBox(0, y, (SHAFT.top + opening) / 2, opening * 2, .42, SHAFT.top - opening, deck);
+    drawBox(0, y, .85, 1.6, .42, 1.4, deck);
+    drawBox(-.76, y + .24, .85, .08, .08, 1.4, edge);
+    drawBox(.76, y + .24, .85, .08, .08, 1.4, edge);
     drawBox(0, y + .24, -opening, opening * 2, .08, .1, edge);
     drawBox(0, y + .24, opening, opening * 2, .08, .1, edge);
     drawBox(-opening, y + .24, 0, .1, .08, opening * 2, edge);
@@ -532,16 +544,33 @@
   }
   function drawPlayer() {
     const fall = state === "playing" ? elapsed : 0;
-    const y = playerBody.position.y + .45, swing = Math.sin(fall * 13) * .55, lean = state === "playing" ? Math.sin(fall * 5) * .08 : 0;
+    const baseY = playerBody.position.y, horizontalSpeed = Math.hypot(playerBody.velocity.x, playerBody.velocity.z);
+    const falling = state === "playing" && !playerBody.grounded && playerBody.velocity.y < -1;
+    const walking = state === "playing" && playerBody.grounded && horizontalSpeed > .45;
+    const gait = walking ? Math.sin(fall * 12) * .58 : 0;
+    const fallSway = falling ? Math.sin(fall * 4) * .12 : 0;
     const skin = [.72, .89, 1], suit = [.12, .68, .88], darkSuit = [.12, .3, .56];
-    drawMesh(sphereMesh, playerX, y + .23, playerY, .34, .36, .34, skin);
-    drawBox(playerX, y - .37, playerY, .56, .76, .4, suit, lean);
-    drawBox(playerX - .42, y - .3 + swing * .2, playerY, .22, .62, .23, skin, -.5 - swing);
-    drawBox(playerX + .42, y - .3 - swing * .2, playerY, .22, .62, .23, skin, .5 + swing);
-    drawBox(playerX - .17, y - .91, playerY, .2, .54, .23, darkSuit, swing);
-    drawBox(playerX + .17, y - .91, playerY, .2, .54, .23, darkSuit, -swing);
-    drawBox(playerX - .17, y - 1.19, playerY + .08, .24, .18, .35, suit, swing * .7);
-    drawBox(playerX + .17, y - 1.19, playerY + .08, .24, .18, .35, suit, -swing * .7);
+    const yaw = characterYaw;
+    const localPoint = (x, y, z) => ({
+      x: playerX + Math.cos(yaw) * x + Math.sin(yaw) * z,
+      y: baseY + y,
+      z: playerY - Math.sin(yaw) * x + Math.cos(yaw) * z
+    });
+    const head = localPoint(0, .7, 0), torso = localPoint(0, .08, 0);
+    const armSpread = falling ? .52 : .42;
+    const armSwing = falling ? -.85 : -gait;
+    const legSwing = falling ? .65 : gait;
+    const leftArm = localPoint(-armSpread, .08, 0), rightArm = localPoint(armSpread, .08, 0);
+    const leftLeg = localPoint(-.17, -.51, 0), rightLeg = localPoint(.17, -.51, 0);
+    const leftFoot = localPoint(-.17, -.82, -.08), rightFoot = localPoint(.17, -.82, -.08);
+    drawMesh(sphereMesh, head.x, head.y, head.z, .34, .36, .34, skin);
+    drawBox(torso.x, torso.y, torso.z, .56, .76, .4, suit, fallSway, 0, yaw);
+    drawBox(leftArm.x, leftArm.y, leftArm.z, .22, .62, .23, skin, falling ? -.32 : -.06, armSwing, yaw);
+    drawBox(rightArm.x, rightArm.y, rightArm.z, .22, .62, .23, skin, falling ? .32 : .06, -armSwing, yaw);
+    drawBox(leftLeg.x, leftLeg.y, leftLeg.z, .2, .54, .23, darkSuit, 0, legSwing, yaw);
+    drawBox(rightLeg.x, rightLeg.y, rightLeg.z, .2, .54, .23, darkSuit, 0, -legSwing, yaw);
+    drawBox(leftFoot.x, leftFoot.y, leftFoot.z, .24, .18, .35, suit, 0, legSwing, yaw);
+    drawBox(rightFoot.x, rightFoot.y, rightFoot.z, .24, .18, .35, suit, 0, -legSwing, yaw);
   }
   function draw() {
     if (gamePanel.hidden || !resizeRenderer()) return;

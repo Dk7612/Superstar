@@ -42,6 +42,8 @@ The following captures the known requests and decisions from the project history
    - Skyfall uses native WebGL (no external game assets or rendering dependency), keyboard/touch steering, and drag-to-look-around controls. It also has 50 progressively harder levels.
    - Skyfall's reusable `physics3d.js` engine is dependency-free and Roblox-inspired: it uses fixed-step gravity, rigid bodies, box/sphere/plane colliders, rotation, collision response, collision groups, sensors, and raycasts. It is an original small engine, not a port or replica of Roblox's proprietary engine.
    - Skyfall builds its start platform, shaft walls, gate obstacles, and player from those physics primitives; its orbit camera raycasts against colliders to stay on the near side of walls.
+   - Skyfall controls are camera-relative: W/S move forward/back in the view's horizontal facing direction, A/D strafe, and the avatar turns to face the camera yaw in a Roblox shift-lock style. The character starts on a short runway over the platform opening and walks forward into the drop.
+   - The avatar has animated arm/leg gait while walking and a spread-limb falling pose while airborne. Keep the model heading, camera heading, and camera-relative movement basis synchronized when changing controls.
    - Present the real games together on one Games page as a gallery with preview art and each game's title beneath it. Selecting a tile opens its game, and players can return to the gallery.
    - Provide a fullscreen option for every game.
    - Do not add fake game tiles or external assets/dependencies without asking.
