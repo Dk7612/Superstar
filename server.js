@@ -656,5 +656,110 @@ app.delete("/admin/bans", requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+
+// Superstar Gimkit AI helper. The API key stays on the server and is never sent to browsers.
+const geminiApiKey = process.env.GEMINI_API_KEY;
+const aiRequestBuckets = new Map();
+const AI_WINDOW_MS = 60_000;
+const AI_MAX_REQUESTS = 20;
+
+app.post("/api/ai/answer", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  if (!geminiApiKey) {
+    return res.status(503).json({ error: "AI is not configured yet. Add GEMINI_API_KEY to the Render environment." });
+  }
+
+  const body = req.body || {};
+  const question = typeof body.question === "string" ? body.question.trim() : "";
+  const choices = Array.isArray(body.choices)
+    ? body.choices.filter(choice => typeof choice === "string").map(choice => choice.trim()).filter(Boolean).slice(0, 8)
+    : [];
+
+  if (!question || question.length > 1200 || choices.length < 2 || choices.some(choice => choice.length > 200)) {
+    return res.status(400).json({ error: "Send a question (up to 1200 characters) and 2-8 answer choices (up to 200 characters each)." });
+  }
+
+  const now = Date.now();
+  const ip = normalizeIp(req.ip) || "unknown";
+  const bucket = aiRequestBuckets.get(ip) || { startedAt: now, count: 0 };
+  if (now - bucket.startedAt >= AI_WINDOW_MS) {
+    bucket.startedAt = now;
+    bucket.count = 0;
+  }
+  bucket.count += 1;
+  aiRequestBuckets.set(ip, bucket);
+  if (bucket.count > AI_MAX_REQUESTS) {
+    return res.status(429).json({ error: "AI request limit reached. Wait a minute and try again." });
+  }
+  if (aiRequestBuckets.size > 2000) {
+    for (const [key, value] of aiRequestBuckets) {
+      if (now - value.startedAt >= AI_WINDOW_MS) aiRequestBuckets.delete(key);
+    }
+  }
+
+  const prompt = [
+    "You help a student understand and answer a multiple-choice question.",
+    "Use the question and choices only. Do not assume access to a game's answer key.",
+    "Choose the best matching choice exactly as written. If the information is insufficient, set answer to an empty string and explain uncertainty.",
+    "Return JSON with exactly these fields: answer (string), explanation (string), confidence (number from 0 to 1).",
+    "",
+    "Question: " + question,
+    "Choices:",
+    ...choices.map((choice, index) => (index + 1) + ". " + choice)
+  ].join("\n");
+
+  try {
+    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + encodeURIComponent(geminiApiKey), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "OBJECT",
+            properties: {
+              answer: { type: "STRING" },
+              explanation: { type: "STRING" },
+              confidence: { type: "NUMBER" }
+            },
+            required: ["answer", "explanation", "confidence"]
+          },
+          temperature: 0.1,
+          maxOutputTokens: 220
+        }
+      }),
+      signal: AbortSignal.timeout(20_000)
+    });
+
+    if (!response.ok) {
+      const detail = await response.text();
+      console.error("Gemini API returned", response.status, detail.slice(0, 500));
+      if (response.status === 429) return res.status(429).json({ error: "The AI provider's free-tier limit was reached. Try again later." });
+      return res.status(502).json({ error: "The AI provider could not answer right now." });
+    }
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.map(part => part.text || "").join("") || "";
+    let result;
+    try {
+      result = JSON.parse(text);
+    } catch {
+      return res.status(502).json({ error: "The AI returned an unreadable answer. Try again." });
+    }
+
+    const answer = typeof result.answer === "string" ? result.answer.trim() : "";
+    const matchedChoice = choices.find(choice => choice.toLowerCase() === answer.toLowerCase());
+    res.json({
+      answer: matchedChoice || "",
+      explanation: typeof result.explanation === "string" ? result.explanation.slice(0, 500) : "",
+      confidence: Number.isFinite(result.confidence) ? Math.max(0, Math.min(1, result.confidence)) : 0
+    });
+  } catch (error) {
+    console.error("AI answer request failed:", error.message);
+    res.status(502).json({ error: "Could not reach the AI provider. Try again in a moment." });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

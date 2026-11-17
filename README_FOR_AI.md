@@ -99,3 +99,15 @@ The following captures the known requests and decisions from the project history
 - Keep secrets out of source, documentation, logs, and chat; never expose Render deploy-hook values or admin credentials.
 - Use the actual Render persistent disk for durable state. A local `data/` directory or an ephemeral Render filesystem is not a guarantee of persistence.
 - Do not push or commit unless requested. When the user says “push,” they mean **commit, push to `main`, and redeploy Render**.
+
+
+## Gemini-powered Gimkit helper (added on `superstar-ai`)
+
+- `POST /api/ai/answer` accepts JSON `{ "question": "...", "choices": ["...", "..."] }` and returns `{ "answer", "explanation", "confidence" }`.
+- The backend calls Gemini 2.5 Flash. The API key is read only from the server-side `GEMINI_API_KEY` environment variable; never put it in browser code or Git.
+- The route validates input, caps choice count/length, applies a basic per-IP in-memory limit (20 requests/minute), times out provider requests, and does not require a Superstar login.
+- Tampermonkey client: `superstar-gimkit.user.js`. It creates a movable panel on Gimkit, attempts best-effort visible-text detection, and allows manual correction before asking the backend. Gimkit's UI varies by mode, so automatic detection is not guaranteed. It does not read hidden answer keys or auto-click answers.
+- To activate after deploying, add `GEMINI_API_KEY` in the Render service's Environment settings. Generate it in Google AI Studio. Do not paste the key into GitHub or chat.
+- Install the userscript by opening `superstar-gimkit.user.js` on GitHub and using the Raw view with Tampermonkey enabled, then install/confirm. Confirm the script's @connect permission if Tampermonkey asks.
+- Test `/health` first, then test the AI route with a normal question and choices. A 503 means the Render environment key is missing; 429 means a rate limit; 502 means the provider request failed.
+- This helper provides AI suggestions, not guaranteed answers. Review the question, choices, and explanation before selecting anything.
