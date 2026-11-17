@@ -3,7 +3,8 @@
 // @namespace    https://github.com/Dk7612/Superstar
 // @version      1.0.0
 // @description  Ask Superstar's Gemini-powered backend for help with visible Gimkit questions.
-// @match        https://www.gimkit.com/*
+// @match        https://gimkit.com/*
+// @match        https://*.gimkit.com/*
 // @grant        GM_xmlhttpRequest
 // @connect      superstar-oa7t.onrender.com
 // @run-at       document-idle
