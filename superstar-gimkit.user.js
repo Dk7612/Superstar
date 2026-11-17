@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Superstar Gimkit AI Helper
 // @namespace    https://github.com/Dk7612/Superstar
-// @version      1.0.0
+// @version      1.1.0
 // @description  Ask Superstar's Gemini-powered backend for help with visible Gimkit questions.
 // @match        https://gimkit.com/*
 // @match        https://*.gimkit.com/*
@@ -31,6 +31,8 @@
       textarea,input{width:100%;border:1px solid #454b60;border-radius:7px;background:#0f1119;color:#fff;padding:8px;font:inherit}
       textarea{resize:vertical;min-height:65px} #choices{min-height:100px}
       .actions{display:flex;gap:8px} .actions button{flex:1}
+      .permission{background:#202638;border:1px solid #454b60;border-radius:8px;padding:8px;font-size:12px}
+      .permission label{display:flex;gap:8px;align-items:center;color:#e0e3ee}.permission input{width:auto}
       #status{font-size:12px;color:#bfc5d8;min-height:18px} #result{background:#242a3b;padding:10px;border-radius:8px;white-space:pre-wrap}
       .answer{font-size:16px;font-weight:700;color:#a99cff}
       .hidden{display:none}
@@ -38,10 +40,13 @@
     <div class="panel">
       <header id="drag"><span>⭐ Superstar AI</span><button id="min" class="secondary">−</button></header>
       <main id="body">
+        <div class="permission"><label><input id="readPermission" type="checkbox"> Allow Superstar to read visible Gimkit questions</label></div>
+        <div class="permission"><label><input id="clickPermission" type="checkbox"> Allow Superstar to click an answer (confirmation required)</label></div>
         <div class="actions"><button id="detect" class="secondary">Detect question</button><button id="clear" class="secondary">Clear</button></div>
         <label for="question">Question</label><textarea id="question" placeholder="Question text..."></textarea>
         <label for="choices">Answer choices (one per line)</label><textarea id="choices" placeholder="Choice 1&#10;Choice 2&#10;Choice 3&#10;Choice 4"></textarea>
         <button id="ask">Ask Superstar AI</button>
+        <button id="apply" class="secondary hidden">Apply suggested answer</button>
         <div id="status" role="status">Ready. Detection may not work in every Gimkit game mode.</div>
         <div id="result" class="hidden"></div>
       </main>
@@ -50,6 +55,22 @@
   document.documentElement.appendChild(host);
   const $ = id => shadow.getElementById(id);
   let minimized = false;
+  let suggestedAnswer = "";
+  const permissionKey = "superstar-gimkit-permissions-v1";
+  let permissions = { read: false, click: false };
+  try { permissions = { ...permissions, ...JSON.parse(localStorage.getItem(permissionKey) || "{}") }; } catch {}
+  $("readPermission").checked = permissions.read === true;
+  $("clickPermission").checked = permissions.click === true;
+  function savePermissions() {
+    permissions = { read: $("readPermission").checked, click: $("clickPermission").checked };
+    localStorage.setItem(permissionKey, JSON.stringify(permissions));
+    $("status").textContent = permissions.read
+      ? "Screen reading is enabled. You can turn it off at any time."
+      : "Screen reading is off. You can still enter questions manually.";
+    if (!permissions.click) $("apply").classList.add("hidden");
+  }
+  $("readPermission").addEventListener("change", savePermissions);
+  $("clickPermission").addEventListener("change", savePermissions);
 
   $("min").addEventListener("click", () => {
     minimized = !minimized;
@@ -60,12 +81,18 @@
     $("question").value = "";
     $("choices").value = "";
     $("result").classList.add("hidden");
+    $("apply").classList.add("hidden");
+    suggestedAnswer = "";
     $("status").textContent = "Cleared.";
   });
 
   // Best-effort text detection. Gimkit changes its page structure frequently;
   // manual editing is always available when the question is not detected.
   function detectQuestion() {
+    if (!permissions.read) {
+      $("status").textContent = "Turn on 'Allow Superstar to read visible Gimkit questions' first.";
+      return;
+    }
     const visible = element => {
       const style = getComputedStyle(element);
       const rect = element.getBoundingClientRect();
@@ -116,6 +143,7 @@
           $("status").textContent = data.error || "AI request failed.";
           return;
         }
+        suggestedAnswer = typeof data.answer === "string" ? data.answer : "";
         $("result").innerHTML = "";
         const answer = document.createElement("div");
         answer.className = "answer";
@@ -127,11 +155,34 @@
         confidence.textContent = "Confidence estimate: " + Math.round((data.confidence || 0) * 100) + "%";
         $("result").append(answer, explanation, confidence);
         $("result").classList.remove("hidden");
+        $("apply").classList.toggle("hidden", !(permissions.click && suggestedAnswer));
         $("status").textContent = "Done. Check the explanation before choosing.";
       },
       onerror: () => { $("ask").disabled = false; $("status").textContent = "Couldn't contact Superstar. Check your connection."; },
       ontimeout: () => { $("ask").disabled = false; $("status").textContent = "The request timed out. Try again."; }
     });
+  });
+
+  $("apply").addEventListener("click", () => {
+    if (!permissions.click || !suggestedAnswer) {
+      $("status").textContent = "Answer clicking is disabled or there is no suggested answer.";
+      return;
+    }
+    const normalize = value => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
+    const target = [...document.querySelectorAll("button,[role=button],[role=option]")]
+      .find(el => {
+        const style = getComputedStyle(el), rect = el.getBoundingClientRect();
+        const text = (el.innerText || el.textContent || "").trim();
+        return style.display !== "none" && style.visibility !== "hidden" &&
+          rect.width > 0 && rect.height > 0 && normalize(text) === normalize(suggestedAnswer);
+      });
+    if (!target) {
+      $("status").textContent = "Couldn't find an exact visible answer button. Nothing was clicked.";
+      return;
+    }
+    if (!confirm("Click this Gimkit answer?\\n\\n" + suggestedAnswer)) return;
+    target.click();
+    $("status").textContent = "Clicked the answer you confirmed.";
   });
 
   // Drag the panel using its header, without interfering with page interactions.

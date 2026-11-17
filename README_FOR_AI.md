@@ -106,8 +106,19 @@ The following captures the known requests and decisions from the project history
 - `POST /api/ai/answer` accepts JSON `{ "question": "...", "choices": ["...", "..."] }` and returns `{ "answer", "explanation", "confidence" }`.
 - The backend calls Gemini 2.5 Flash. The API key is read only from the server-side `GEMINI_API_KEY` environment variable; never put it in browser code or Git.
 - The route validates input, caps choice count/length, applies a basic per-IP in-memory limit (20 requests/minute), times out provider requests, and does not require a Superstar login.
-- Tampermonkey client: `superstar-gimkit.user.js`. It creates a movable panel on Gimkit, attempts best-effort visible-text detection, and allows manual correction before asking the backend. Gimkit's UI varies by mode, so automatic detection is not guaranteed. It does not read hidden answer keys or auto-click answers.
+- Tampermonkey client: `superstar-gimkit.user.js`. It creates a movable panel on Gimkit, attempts best-effort visible-text detection, and allows manual correction before asking the backend. Gimkit's UI varies by mode, so automatic detection is not guaranteed. It never reads hidden answer keys. Answer clicking is available only after the user enables its separate permission, the AI has suggested an answer, an exact visible answer-button text match is found, and the user confirms the browser prompt. Both screen-reading and answer-click permissions default to off and are stored in browser local storage.
 - To activate after deploying, add `GEMINI_API_KEY` in the Render service's Environment settings. Generate it in Google AI Studio. Do not paste the key into GitHub or chat.
 - Install the userscript by opening `superstar-gimkit.user.js` on GitHub and using the Raw view with Tampermonkey enabled, then install/confirm. Confirm the script's @connect permission if Tampermonkey asks.
 - Test `/health` first, then test the AI route with a normal question and choices. A 503 means the Render environment key is missing; 429 means a rate limit; 502 means the provider request failed.
 - This helper provides AI suggestions, not guaranteed answers. Review the question, choices, and explanation before selecting anything.
+
+
+## Latest change set — Gimkit mini-panel permissions and Skyfall camera
+
+- `superstar-gimkit.user.js` is now version 1.1.0.
+- Added two independent, opt-in permissions to the movable Gimkit panel: reading visible on-screen question text and clicking an answer. Both start disabled.
+- The Detect Question action does not inspect the page unless screen-reading permission is enabled. Manual question entry remains available without that permission.
+- The Apply Suggested Answer action is shown only when answer-click permission is enabled. It searches visible answer controls for an exact normalized text match and asks for explicit browser confirmation before clicking. If no exact match exists, it does nothing.
+- These controls are convenience features for visible page content; they do not access hidden answer keys or bypass Gimkit's protections. Automatic question detection and button matching are best-effort and may vary with Gimkit's interface.
+- `dropper3d.js`: inverted the vertical drag delta used by Skyfall 3D's orbit camera, so dragging upward changes camera pitch in the opposite direction from before. Horizontal camera rotation is unchanged.
+- Deployment note: these changes are intended for the production `main` branch. The Render deploy workflow should run after the merge because it is configured for pushes to `main`. Verify the workflow result and live site before considering deployment complete.
