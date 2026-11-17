@@ -670,7 +670,7 @@
   canvas.addEventListener("pointermove", event => {
     if (event.pointerId !== dragPointer) return;
     cameraYaw -= (event.clientX - dragX) * .012;
-    cameraPitch = Math.max(.08, Math.min(1.15, cameraPitch + (event.clientY - dragY) * .01));
+    cameraPitch = Math.max(.08, Math.min(1.15, cameraPitch - (event.clientY - dragY) * .01));
     dragX = event.clientX; dragY = event.clientY;
   });
   for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) {
