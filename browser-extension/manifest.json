@@ -1,22 +1,40 @@
 {
   "manifest_version": 3,
   "name": "Superstar Mini Window",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A Spotify-style floating Superstar mini-player with AI help on any website.",
-  "permissions": ["storage"],
-  "host_permissions": ["<all_urls>", "https://superstar-oa7t.onrender.com/*"],
-  "background": { "service_worker": "service-worker.js" },
-  "action": { "default_title": "Open Superstar AI Helper" },
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>",
+    "https://superstar-oa7t.onrender.com/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "action": {
+    "default_title": "Open Superstar AI Helper"
+  },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["global-player.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "global-player.js"
+      ],
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://superstar-oa7t.onrender.com/*"],
-      "js": ["content-bridge.js"],
+      "matches": [
+        "https://superstar-oa7t.onrender.com/*"
+      ],
+      "js": [
+        "content-bridge.js"
+      ],
       "run_at": "document_start"
     }
-  ]
+  ],
+  "update_url": "https://github.com/Dk7612/Superstar/releases/latest/download/updates.xml"
 }
