@@ -125,3 +125,14 @@ The following captures the known requests and decisions from the project history
 - Added a manual-only AI helper UI using the existing server-side Gemini endpoint. No API key is exposed to the extension.
 - Removed the old Tampermonkey userscript from the repository. This does not uninstall a copy already installed in the user's browser; user must manually remove it after the extension is installed and tested.
 - Updated this handoff file alongside the implementation. The work is on branch `superstar-floating-mini-window`; it is not live until merged into `main` and deployed through the existing Render workflow.
+
+
+## Global mini-player and inline AI (v1.1.0)
+
+- Added `browser-extension/global-player.js`, injected into ordinary web pages via the `<all_urls>` content-script match. It creates a compact, fixed-bottom-right Spotify-inspired Superstar bar inside a closed Shadow DOM so host-page CSS does not style the widget.
+- The collapsed bar has **AI**, **Open**, and **−** controls. AI expands a manual question-and-choices panel directly on the current website; it submits only the text the user enters to the existing `POST /api/ai/answer` endpoint. It does not scrape page content, read hidden answers, or click anything.
+- The Open link opens the Superstar site in a new tab. The minus control dismisses the widget for the current page load.
+- The extension now requests broad site access (`<all_urls>`) so the user can see the mini-player on websites other than Superstar. Opera may show a sensitive “read and change your data on all websites” permission prompt. This permission is required for the requested cross-site overlay; the script itself does not inspect page content.
+- The extension still requires the Superstar API host permission to call the AI endpoint. The Gemini key remains server-side.
+- Updated installation: after pulling the new extension files, open `opera://extensions` and press Reload on Superstar Mini Window. If Opera asks for broader website access, grant it to enable the global player. Existing loaded folders update only when the files on disk are replaced and the extension is reloaded.
+- Verification checklist: parse `manifest.json`; run `node --check browser-extension/global-player.js`, `node --check browser-extension/service-worker.js`, `node --check browser-extension/content-bridge.js`, and `node --check browser-extension/helper.js`; test on a normal HTTPS page and on Superstar; test collapsed/expanded state, AI validation, API success/error, mobile width, and confirm the widget never reads or modifies host-page content.
