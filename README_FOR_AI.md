@@ -101,24 +101,27 @@ The following captures the known requests and decisions from the project history
 - Do not push or commit unless requested. When the user says “push,” they mean **commit, push to `main`, and redeploy Render**.
 
 
-## Gemini-powered Gimkit helper (added on `superstar-ai`)
+## Superstar floating mini-window extension
 
-- `POST /api/ai/answer` accepts JSON `{ "question": "...", "choices": ["...", "..."] }` and returns `{ "answer", "explanation", "confidence" }`.
-- The backend calls Gemini 2.5 Flash. The API key is read only from the server-side `GEMINI_API_KEY` environment variable; never put it in browser code or Git.
-- The route validates input, caps choice count/length, applies a basic per-IP in-memory limit (20 requests/minute), times out provider requests, and does not require a Superstar login.
-- Tampermonkey client: `superstar-gimkit.user.js`. It creates a movable panel on Gimkit, attempts best-effort visible-text detection, and allows manual correction before asking the backend. Gimkit's UI varies by mode, so automatic detection is not guaranteed. It never reads hidden answer keys. Answer clicking is available only after the user enables its separate permission, the AI has suggested an answer, an exact visible answer-button text match is found, and the user confirms the browser prompt. Both screen-reading and answer-click permissions default to off and are stored in browser local storage.
-- To activate after deploying, add `GEMINI_API_KEY` in the Render service's Environment settings. Generate it in Google AI Studio. Do not paste the key into GitHub or chat.
-- Install the userscript by opening `superstar-gimkit.user.js` on GitHub and using the Raw view with Tampermonkey enabled, then install/confirm. Confirm the script's @connect permission if Tampermonkey asks.
-- Test `/health` first, then test the AI route with a normal question and choices. A 503 means the Render environment key is missing; 429 means a rate limit; 502 means the provider request failed.
-- This helper provides AI suggestions, not guaranteed answers. Review the question, choices, and explanation before selecting anything.
+- The replacement for the old Tampermonkey userscript is a Manifest V3 browser extension in `browser-extension/`. It is intended for Opera GX (Chromium) and can also be loaded unpacked in compatible Chromium browsers.
+- `browser-extension/manifest.json`: extension metadata, storage permission, production-site host permission, and a content bridge limited to the exact production origin.
+- `browser-extension/service-worker.js`: stores the selected mini-window mode in `chrome.storage.local`, opens a separate popup window from the toolbar action, and handles allowlisted requests from the Superstar dashboard.
+- `browser-extension/content-bridge.js`: bridges only `GET_MINI_MODE`, `SET_MINI_MODE`, and `OPEN_MINI_WINDOW` messages from the exact production origin. It does not inspect Gimkit or other pages.
+- `browser-extension/helper.html` and `helper.js`: standalone manual AI helper. The user enters a question and 2–8 choices; the helper posts them to the existing `POST /api/ai/answer` endpoint and displays the suggested answer, explanation, and confidence estimate.
+- The AI helper does not read page content, inspect hidden answers, or click answers. The former `superstar-gimkit.user.js` userscript is retired and removed from the repository. Existing installed Tampermonkey copies are not remotely uninstalled; the user must remove/disable the old script manually after testing the extension.
+- Dashboard setting in `index.html`: authenticated users can choose **AI Helper** or **Full Superstar Website**, save the preference to extension storage, and open the selected popup. The extension toolbar icon uses the same saved preference.
+- The Full Superstar Website mode opens the production site in a separate browser popup window. It shares the normal browser profile's website storage/cookies, subject to the browser's usual same-origin rules.
+- Installation (Opera GX): open `opera://extensions`; enable **Developer mode**; choose **Load unpacked**; select the repository's `browser-extension` folder. Keep the extension enabled. Then reload the Superstar dashboard, sign in, and use its **Superstar Mini Window** settings card. The toolbar icon opens the selected mode.
+- This is a locally loaded unpacked extension, not a published Opera Add-ons listing. The user must keep the folder on disk; do not move or delete it after loading.
+- Extension permissions are intentionally narrow: `storage` plus host access to `https://superstar-oa7t.onrender.com/*`. No Gimkit host access, page-reading permission, or answer-click permission is requested.
+- AI backend: `POST /api/ai/answer` accepts JSON `{ "question": "...", "choices": ["...", "..."] }` and returns `{ "answer", "explanation", "confidence" }`. Gemini 2.5 Flash is called server-side using `GEMINI_API_KEY`; never put that key in extension files or Git. The route currently limits requests to 20 per IP per minute.
+- Testing checklist: validate the extension manifest JSON; run `node --check browser-extension/service-worker.js`, `node --check browser-extension/content-bridge.js`, and `node --check browser-extension/helper.js`; load the unpacked extension; verify the dashboard detects it; save each mode and verify both the dashboard Open button and toolbar icon create a separate popup; submit a manual question with 2+ choices and verify success/error handling; confirm no Gimkit content is read or clicked.
+- Deployment: dashboard settings are served by `index.html` and require a Render deploy to become available on the live site. Extension files are loaded locally from the repository folder and do not need to be hosted by Render. Do not claim production is updated until the branch is merged/deployed and the relevant live flow is smoke-tested.
 
+## Latest change set — floating mini-window extension migration
 
-## Latest change set — Gimkit mini-panel permissions and Skyfall camera
-
-- `superstar-gimkit.user.js` is now version 1.1.0.
-- Added two independent, opt-in permissions to the movable Gimkit panel: reading visible on-screen question text and clicking an answer. Both start disabled.
-- The Detect Question action does not inspect the page unless screen-reading permission is enabled. Manual question entry remains available without that permission.
-- The Apply Suggested Answer action is shown only when answer-click permission is enabled. It searches visible answer controls for an exact normalized text match and asks for explicit browser confirmation before clicking. If no exact match exists, it does nothing.
-- These controls are convenience features for visible page content; they do not access hidden answer keys or bypass Gimkit's protections. Automatic question detection and button matching are best-effort and may vary with Gimkit's interface.
-- `dropper3d.js`: inverted the vertical drag delta used by Skyfall 3D's orbit camera, so dragging upward changes camera pitch in the opposite direction from before. Horizontal camera rotation is unchanged.
-- Deployment note: these changes are intended for the production `main` branch. The Render deploy workflow should run after the merge because it is configured for pushes to `main`. Verify the workflow result and live site before considering deployment complete.
+- Added a Manifest V3 Opera GX / Chromium extension with a separate popup window and two saved modes: standalone AI Helper and Full Superstar Website.
+- Added an authenticated-dashboard settings card in `index.html` to save the mode and open the mini-window through a tightly scoped extension message bridge.
+- Added a manual-only AI helper UI using the existing server-side Gemini endpoint. No API key is exposed to the extension.
+- Removed the old Tampermonkey userscript from the repository. This does not uninstall a copy already installed in the user's browser; user must manually remove it after the extension is installed and tested.
+- Updated this handoff file alongside the implementation. The work is on branch `superstar-floating-mini-window`; it is not live until merged into `main` and deployed through the existing Render workflow.
