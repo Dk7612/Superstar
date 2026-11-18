@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Superstar AI Helper</title>
+  <style>
+    :root{color-scheme:dark;font-family:Arial,sans-serif;background:#0b1022;color:#f3f5ff}
+    *{box-sizing:border-box}
+    body{margin:0;padding:18px;background:radial-gradient(ellipse at top,#202b50,#0b1022 70%);min-height:100vh}
+    header{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+    .star{font-size:25px} h1{font-size:20px;margin:0} .sub{font-size:12px;color:#aeb9d8;margin:4px 0 0}
+    main{background:#141d38;border:1px solid #344368;border-radius:13px;padding:16px;box-shadow:0 12px 32px #0005}
+    label{display:block;font-size:12px;color:#c6d0ea;margin:13px 0 6px}
+    textarea{display:block;width:100%;min-height:90px;resize:vertical;border:1px solid #48577e;border-radius:8px;padding:10px;background:#080f22;color:#fff;font:14px/1.4 Arial,sans-serif}
+    #question{min-height:105px} button{width:100%;margin-top:13px;padding:11px;border:0;border-radius:8px;background:#687ce0;color:white;font-weight:700;cursor:pointer}
+    button:disabled{opacity:.6;cursor:wait} #status{min-height:20px;margin:12px 0 0;color:#b8c4e3;font-size:12px}
+    #result{margin-top:12px;padding:12px;border-radius:9px;background:#202b4b;white-space:pre-wrap;line-height:1.5}
+    #answer{font-weight:700;color:#b6adff;font-size:16px;margin-bottom:7px}
+    .foot{font-size:11px;color:#9aa8ca;margin:14px 2px;line-height:1.5}
+  </style>
+</head>
+<body>
+  <header><span class="star">⭐</span><div><h1>Superstar AI Helper</h1><p class="sub">A separate mini-window for quick question help</p></div></header>
+  <main>
+    <label for="question">Question</label>
+    <textarea id="question" maxlength="1200" placeholder="Paste or type the question here..."></textarea>
+    <label for="choices">Answer choices (one per line)</label>
+    <textarea id="choices" placeholder="Choice 1&#10;Choice 2&#10;Choice 3&#10;Choice 4"></textarea>
+    <button id="ask" type="button">Ask Superstar AI</button>
+    <p id="status" role="status">Enter a question and at least two choices.</p>
+    <section id="result" hidden aria-live="polite"><div id="answer"></div><div id="explanation"></div><div id="confidence"></div></section>
+  </main>
+  <p class="foot">This helper uses the question and choices you enter. Check the explanation and make your own decision. It does not read or click anything on another website.</p>
+  <script src="helper.js"></script>
+</body>
+</html>
