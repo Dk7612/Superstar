@@ -23,6 +23,9 @@
     .settings-menu { position:absolute; z-index:21; right:0; top:calc(100% + 8px); width:230px; padding:14px; background:#111a34; border:1px solid rgba(164,184,255,.25); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.4); }
     .settings-menu label { display:block; margin:0 0 10px; }
     .settings-menu select { display:block; width:100%; margin-top:5px; }
+    #miniWindowStatus { min-height:18px; margin:10px 0 0; }
+    #miniWindowSettings .mini-window-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+    #miniWindowSettings select { min-width:190px; }
     .card { background:rgba(17, 26, 52, .88); border:1px solid rgba(164,184,255,.18); padding:20px; margin:10px 0; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.24); backdrop-filter:blur(8px); }
     button { background:#27365f; color:#f5f7ff; padding:8px 15px; margin:5px; border:1px solid rgba(190,205,255,.18); border-radius:7px; cursor:pointer;}
     button:hover { background:#384a7c; }
@@ -138,6 +141,21 @@
     <h2>You're logged in</h2>
     <p class="notice" id="welcomeMessage">Welcome to the dashboard.</p>
   </div>
+
+  <section class="card" id="miniWindowSettings" style="display:none" aria-labelledby="miniWindowTitle">
+    <h2 id="miniWindowTitle">Superstar Mini Window</h2>
+    <p class="notice">Choose what opens in the separate popup window when you click the Superstar extension icon.</p>
+    <div class="mini-window-actions">
+      <label for="miniWindowMode">Mini-window mode</label>
+      <select id="miniWindowMode">
+        <option value="ai-helper">AI Helper</option>
+        <option value="full-site">Full Superstar Website</option>
+      </select>
+      <button id="saveMiniWindowMode" type="button">Save preference</button>
+      <button id="openMiniWindow" class="generate" type="button">Open Superstar Mini Window</button>
+    </div>
+    <p class="notice" id="miniWindowStatus" role="status">Checking for the Superstar browser extension…</p>
+  </section>
   <button id="cookieSettingsLink" type="button" hidden>Cookie settings</button>
 
   <div class="card" id="adminPanel" style="display:none">
@@ -360,6 +378,8 @@ function showAuthenticatedDashboard(session, remembered = false) {
   document.body.classList.add("authenticated");
   document.getElementById("loginCard").style.display = "none";
   document.getElementById("welcomePanel").style.display = "block";
+  document.getElementById("miniWindowSettings").style.display = "block";
+  syncMiniWindowSettings();
   document.getElementById("welcomeMessage").textContent = remembered
     ? "Signed in as admin on this remembered device. Enjoy the stars."
     : `Signed in as ${role}. Enjoy the stars.`;
@@ -592,6 +612,63 @@ function renderBans(elementId, type, values) {
     list.appendChild(item);
   }
 }
+
+// --- Opera GX / Chromium mini-window extension bridge ---
+const miniWindowModeSelect = document.getElementById("miniWindowMode");
+const miniWindowStatus = document.getElementById("miniWindowStatus");
+let miniWindowExtensionAvailable = false;
+
+function sendMiniWindowMessage(type, mode) {
+  const requestId = crypto.randomUUID();
+  window.postMessage({
+    source: "superstar-site",
+    type,
+    mode,
+    requestId
+  }, window.location.origin);
+}
+
+function syncMiniWindowSettings() {
+  miniWindowExtensionAvailable = false;
+  miniWindowStatus.textContent = "Checking for the Superstar browser extension…";
+  sendMiniWindowMessage("GET_MINI_MODE");
+}
+
+window.addEventListener("message", event => {
+  if (event.source !== window || event.origin !== window.location.origin) return;
+  const message = event.data;
+  if (!message || message.source !== "superstar-extension") return;
+  if (message.type === "GET_MINI_MODE_RESULT" || message.type === "SET_MINI_MODE_RESULT") {
+    miniWindowExtensionAvailable = message.ok === true;
+    if (message.ok && ["ai-helper", "full-site"].includes(message.mode)) {
+      miniWindowModeSelect.value = message.mode;
+      miniWindowStatus.textContent = "Extension connected. Your preference is saved in the browser extension.";
+    } else {
+      miniWindowStatus.textContent = "Extension not detected. Install the Superstar Mini Window extension in Opera GX, then reload this page.";
+    }
+  } else if (message.type === "OPEN_MINI_WINDOW_RESULT") {
+    miniWindowStatus.textContent = message.ok
+      ? "Opening your Superstar mini-window…"
+      : "Could not open the mini-window. Check that the extension is enabled.";
+  }
+});
+
+document.getElementById("saveMiniWindowMode").addEventListener("click", () => {
+  if (!miniWindowExtensionAvailable) {
+    miniWindowStatus.textContent = "Install and enable the Superstar Mini Window extension first.";
+    return;
+  }
+  sendMiniWindowMessage("SET_MINI_MODE", miniWindowModeSelect.value);
+});
+
+document.getElementById("openMiniWindow").addEventListener("click", () => {
+  if (!miniWindowExtensionAvailable) {
+    miniWindowStatus.textContent = "Install and enable the Superstar Mini Window extension first.";
+    return;
+  }
+  sendMiniWindowMessage("OPEN_MINI_WINDOW");
+});
+
 </script>
 </body>
 </html>
