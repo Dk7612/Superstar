@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Superstar Mini Window",
+  "version": "1.0.0",
+  "description": "Open Superstar as a floating mini-window or use its standalone AI helper.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://superstar-oa7t.onrender.com/*"],
+  "background": { "service_worker": "service-worker.js" },
+  "action": { "default_title": "Open Superstar Mini Window" },
+  "content_scripts": [
+    {
+      "matches": ["https://superstar-oa7t.onrender.com/*"],
+      "js": ["content-bridge.js"],
+      "run_at": "document_start"
+    }
+  ]
+}
