@@ -52,9 +52,7 @@
     .dialog-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:20px; }
     :root[data-theme="light"] body { background:linear-gradient(160deg, #f3f6ff, #e5ecfb 55%, #eee9ff); color:#202945; }
     :root[data-theme="light"] .starfield { opacity:.55; }
-    :root[data-theme="light"] .star-settings summary,
     :root[data-theme="light"] button { background:#e1e8fa; color:#202945; border-color:#c3cee8; }
-    :root[data-theme="light"] .star-settings summary:hover,
     :root[data-theme="light"] button:hover { background:#d1dcf5; }
     :root[data-theme="light"] dialog { background:#fff; color:#202945; border-color:#cbd5eb; }
     :root[data-theme="light"] .nav-link { color:#202945; background:#e1e8fa; border-color:#c3cee8; }
@@ -552,7 +550,18 @@ async function generateCode() {
   });
   if (!res.ok) return alert((await res.json()).error);
   const data = await res.json();
-  document.getElementById("newCode").innerText = "New code: "+data.code;
+  const output = document.getElementById("newCode");
+  output.replaceChildren();
+  const label = document.createElement("strong");
+  label.textContent = "New code: " + data.code + " ";
+  const copy = document.createElement("button");
+  copy.type = "button";
+  copy.textContent = "Copy code";
+  copy.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(data.code); copy.textContent = "Copied!"; }
+    catch { copy.textContent = "Copy unavailable"; }
+  });
+  output.append(label, copy);
   document.getElementById("customCodeInput").value = "";
   loadUsers();
 }
@@ -642,11 +651,17 @@ async function saveUserName(code, name) {
 }
 
 async function resetDevice(code) {
-  await adminFetch("/admin/reset", {
+  if (!window.confirm("Reset the device lock for this access code?")) return;
+  const response = await adminFetch("/admin/reset", {
     method:"POST", headers:adminHeaders(true),
     body: JSON.stringify({code})
   });
-  loadUsers();
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({}));
+    alert(result.error || "Could not reset this device.");
+    return;
+  }
+  await loadUsers();
 }
 
 async function loadLogins(silent = false) {
@@ -737,11 +752,12 @@ document.getElementById("confirmBan").addEventListener("click", async () => {
 });
 
 async function unban(type, value) {
+  if (!window.confirm("Remove this " + (type === "ip" ? "IP" : "device") + " ban?")) return;
   const res = await adminFetch("/admin/bans", {
     method:"DELETE", headers:adminHeaders(true), body:JSON.stringify({type, value})
   });
   if (!res.ok) return alert((await res.json()).error || "Could not remove ban.");
-  loadBans();
+  await loadBans();
 }
 
 async function loadBans() {
