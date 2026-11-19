@@ -327,3 +327,30 @@ The following captures the known requests and decisions from the project history
 - The helper displays the suggested choice, explanation, and confidence. It never auto-clicks an answer, submits a response, changes game state, or interacts with other players.
 - The saved Quick replies preference is sent to the answer endpoint.
 - Verification: run `node --check browser-extension/global-player.js`, parse `browser-extension/manifest.json`, test the helper appears only on `gimkit.com` / `blooket.com`, test capture/edit/analyze with a signed-in account, test missing session and disabled AI permission, and confirm no answer is clicked or submitted.
+
+
+## Question helper reliability update — extension v1.2.7
+
+- The Gimkit/Blooket helper now displays the actual request failure in both its status line and result panel instead of replacing every failure with the unhelpful text "No suggestion yet". A diagnostic is also written to the extension console.
+- The server normalizes AI-returned choices before matching, tolerating harmless punctuation, whitespace, and leading option labels; it also maps standalone A-H or 1-8 labels to the corresponding supplied choice when unambiguous.
+- The helper remains opt-in and never clicks or submits a game answer.
+- Verification: run `node --check server.js`, `node --check browser-extension/global-player.js`, parse the manifest JSON, and manually test a successful request plus missing session, disabled AI permission, provider errors, and non-exact answer formatting.
+
+
+## Screenshot-based quiz questions — extension v1.2.8
+
+- The Gimkit/Blooket helper captures only the currently visible tab viewport after temporarily hiding the Superstar overlay, so the overlay does not cover the question.
+- Screenshot capture is user-initiated and handled by the extension service worker using `chrome.tabs.captureVisibleTab`; the existing `<all_urls>` host permission authorizes capture; no new broad permission is added.
+- The helper previews the screenshot and sends it to the authenticated `/api/ai/answer` endpoint. Gemini receives the image as inline image data and is instructed to read only the main question and answer choices, ignoring unrelated page text and UI.
+- Manual question and answer-choice text is optional when a screenshot is attached. The old whole-page `document.body.innerText` capture was removed.
+- The server accepts JPEG, PNG, or WebP data URLs under 1.8 MB and uses a 3 MB JSON request limit. Images are sent to Gemini through the server; the Gemini API key is never exposed to the extension.
+- Verification: syntax-check the changed JavaScript, parse the manifest, then manually test screenshot capture, screenshot preview, image-based analysis, and a manual-text-only request.
+
+
+## Auto Fast Answer — extension v1.2.9
+
+- The Gimkit/Blooket Question Helper includes an opt-in Auto Fast Answer toggle, persisted in extension local storage.
+- When enabled, a MutationObserver watches for page UI changes without reading page text. After a debounce, the extension captures the visible tab screenshot and computes a small visual fingerprint; only materially changed screenshots are sent to Gemini, with a minimum capture interval to reduce duplicate requests.
+- The screenshot is captured with the Superstar overlay hidden. Gemini is instructed to read only the question and answer choices. The answer is shown in the helper; the extension does not click, select, type into, or submit any game answer.
+- Leaving the Question Helper stops its observer. Turning the toggle off stops automatic capture immediately.
+- Verification: run syntax checks for `global-player.js` and `service-worker.js`, parse manifest JSON, then manually test toggle persistence, question-change detection, duplicate suppression, manual capture, and disabled mode on Gimkit and Blooket.
