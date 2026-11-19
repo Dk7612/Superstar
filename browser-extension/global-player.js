@@ -147,6 +147,7 @@
   let focusSeconds = 25 * 60;
   let gameFrame = 0;
   let gameKeyHandler = null;
+  let quizAutoCleanup = null;
 
   function stopGame() {
     if (gameFrame) cancelAnimationFrame(gameFrame);
@@ -165,6 +166,7 @@
     launcher.setAttribute("aria-expanded", "false");
   }
   function showView(name) {
+    if (quizAutoCleanup) { quizAutoCleanup(); quizAutoCleanup = null; }
     activeView = name;
     menu.hidden = true; view.hidden = false; viewbody.replaceChildren();
     stopGame();
@@ -221,7 +223,11 @@
   }
   function renderQuiz() {
     viewtitle.textContent = quizHost + " Question Helper";
-    const note = element("p", "welcome", "Capture a screenshot of the visible question. Gemini will read the question and choices from the image, not scan the entire page. You can also edit the text below.");
+    const note = element("p", "welcome", "Capture a screenshot manually, or enable Auto Fast Answer to watch for new questions and send changed question screens to Gemini. It never clicks or submits an answer.");
+    const autoLabel = element("label", "muted", "⚡ Auto Fast Answer");
+    autoLabel.style.cssText = "display:flex;align-items:center;gap:8px;font-size:12px;color:#fff";
+    const autoToggle = element("input"); autoToggle.type = "checkbox"; autoToggle.setAttribute("aria-label", "Enable Auto Fast Answer");
+    autoLabel.append(autoToggle, document.createTextNode("Automatically detect and analyze new questions"));
     const questionLabel = element("label", "muted", "Question (optional if screenshot is attached)");
     const question = element("textarea"); question.maxLength = 1200; question.placeholder = "Optional: type or paste the question…"; question.setAttribute("aria-label", "Quiz question");
     const choicesLabel = element("label", "muted", "Answer choices (optional if screenshot is attached)");
@@ -233,10 +239,126 @@
     preview.style.cssText = "display:none;width:100%;max-height:190px;object-fit:contain;border:1px solid #465780;border-radius:9px;background:#080f22";
     const clearShot = element("button", "secondary", "Remove screenshot"); clearShot.type = "button"; clearShot.hidden = true;
     let screenshotDataUrl = "";
-    const status = element("p", "status", "Capture the question area, then ask Gemini to read it.");
+    let autoObserver = null, autoDebounce = null, autoEnabled = false, autoRunning = false, lastAutoFingerprint = "", lastAutoCaptureAt = 0;
+    let disposed = false;
+    const status = element("p", "status", "Capture the question area, or enable Auto Fast Answer.");
     const answer = element("div", "bubble assistant", "Your suggestion will appear here."); answer.setAttribute("aria-live", "polite");
     captureRow.append(capture, analyze);
-    viewbody.append(note, captureRow, preview, clearShot, questionLabel, question, choicesLabel, choices, status, answer);
+    viewbody.append(note, autoLabel, captureRow, preview, clearShot, questionLabel, question, choicesLabel, choices, status, answer);
+
+    function captureVisibleQuestion() {
+      return new Promise(async (resolve, reject) => {
+        const oldVisibility = host.style.visibility;
+        host.style.visibility = "hidden";
+        try {
+          await new Promise(requestAnimationFrame);
+          chrome.runtime.sendMessage({ type: "CAPTURE_VISIBLE_TAB" }, response => {
+            const runtimeError = chrome.runtime.lastError;
+            host.style.visibility = oldVisibility;
+            if (runtimeError) reject(new Error(runtimeError.message));
+            else if (!response?.ok || !response.dataUrl) reject(new Error(response?.error || "Could not capture this tab."));
+            else resolve(response.dataUrl);
+          });
+        } catch (error) { host.style.visibility = oldVisibility; reject(error); }
+      });
+    }
+
+    async function imageFingerprint(dataUrl) {
+      const image = new Image(); image.src = dataUrl; await image.decode();
+      const canvas = document.createElement("canvas"); canvas.width = 24; canvas.height = 14;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      let result = "";
+      for (let i = 0; i < pixels.length; i += 4) {
+        const gray = Math.round(pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114);
+        result += gray.toString(16).padStart(2, "0");
+      }
+      return result;
+    }
+
+    function fingerprintChanged(next, previous) {
+      if (!previous) return true;
+      let changed = 0;
+      for (let i = 0; i < next.length; i += 2) {
+        if (Math.abs(parseInt(next.slice(i, i + 2), 16) - parseInt(previous.slice(i, i + 2), 16)) > 24) changed++;
+      }
+      return changed >= 22;
+    }
+
+    async function requestSuggestion(imageData, automatic) {
+      if (waiting) return;
+      const prompt = question.value.trim();
+      const options = choices.value.split(/\n+/).map(value => value.trim()).filter(Boolean).slice(0, 8);
+      if (!imageData && (!prompt || options.length < 2)) { status.textContent = "Capture a screenshot, or enter a question and at least two choices."; return; }
+      if (prompt.length > 1200 || options.some(value => value.length > 200)) { status.textContent = "The question or an answer choice is too long."; return; }
+      waiting = true; analyze.disabled = true; capture.disabled = true;
+      status.textContent = automatic ? "New question detected — asking Gemini…" : "Sending the screenshot to Gemini…";
+      answer.textContent = automatic ? "Auto Fast Answer is reading the new question…" : "Reading the question…";
+      try {
+        const stored = await new Promise(resolve => chrome.storage.local.get(["superstarSessionToken", "quickReply"], resolve));
+        const sessionToken = stored.superstarSessionToken || "";
+        if (!sessionToken) throw new Error("Sign in to Superstar first, then reload this game tab.");
+        const response = await fetch("https://superstar-oa7t.onrender.com/api/ai/answer", {
+          method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + sessionToken },
+          body: JSON.stringify({ question: prompt, choices: options, screenshotDataUrl: imageData || "", quickReply: stored.quickReply !== false }),
+          signal: AbortSignal.timeout(35000)
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Could not analyze this question.");
+        answer.textContent = data.answer
+          ? (automatic ? "⚡ Auto suggestion: " : "Suggested answer: ") + data.answer + "\n\n" + (data.explanation || "No explanation was returned.") + "\n\nConfidence: " + Math.round((data.confidence || 0) * 100) + "%"
+          : "No confident match. " + (data.explanation || "Try capturing a clearer screenshot.");
+        status.textContent = automatic ? "New question analyzed. Choose the suggested answer yourself." : "Suggestion ready. Review it and choose your answer yourself.";
+      } catch (error) {
+        const message = error && error.message ? error.message : "Question helper unavailable.";
+        status.textContent = "Request failed: " + message; answer.textContent = "The AI request did not complete. " + message;
+        console.error("Superstar question helper failed:", error);
+      } finally { waiting = false; analyze.disabled = false; capture.disabled = false; }
+    }
+
+    async function autoCheck() {
+      if (!autoEnabled || disposed || autoRunning || waiting || Date.now() - lastAutoCaptureAt < 2800) return;
+      autoRunning = true; lastAutoCaptureAt = Date.now();
+      try {
+        const shot = await captureVisibleQuestion();
+        if (!autoEnabled || disposed) return;
+        const fingerprint = await imageFingerprint(shot);
+        if (!fingerprintChanged(fingerprint, lastAutoFingerprint)) return;
+        lastAutoFingerprint = fingerprint; screenshotDataUrl = shot;
+        preview.src = shot; preview.style.display = "block"; clearShot.hidden = false;
+        await requestSuggestion(shot, true);
+      } catch (error) {
+        if (autoEnabled && !disposed) status.textContent = "Auto capture failed: " + (error.message || "Try again.");
+      } finally { autoRunning = false; }
+    }
+
+    function scheduleAutoCheck() {
+      if (!autoEnabled || disposed) return;
+      clearTimeout(autoDebounce); autoDebounce = setTimeout(autoCheck, 850);
+    }
+    function stopAuto() {
+      autoEnabled = false;
+      if (autoObserver) autoObserver.disconnect();
+      autoObserver = null; clearTimeout(autoDebounce); autoDebounce = null;
+    }
+    function startAuto() {
+      stopAuto(); autoEnabled = true; lastAutoFingerprint = "";
+      autoObserver = new MutationObserver(scheduleAutoCheck);
+      if (document.body) autoObserver.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
+      status.textContent = "Auto Fast Answer is on. Waiting for a question…"; scheduleAutoCheck();
+    }
+
+    autoToggle.addEventListener("change", () => {
+      if (autoToggle.checked) startAuto();
+      else { stopAuto(); status.textContent = "Auto Fast Answer is off."; }
+      chrome.storage.local.set({ quizAutoFastAnswer: autoToggle.checked });
+    });
+    chrome.storage.local.get("quizAutoFastAnswer", stored => {
+      if (disposed) return;
+      autoToggle.checked = stored.quizAutoFastAnswer === true;
+      if (autoToggle.checked) startAuto();
+    });
     clearShot.addEventListener("click", () => {
       screenshotDataUrl = ""; preview.removeAttribute("src"); preview.style.display = "none"; clearShot.hidden = true;
       status.textContent = "Screenshot removed. You can capture another one.";
@@ -244,56 +366,17 @@
     capture.addEventListener("click", async () => {
       if (waiting) return;
       capture.disabled = true; status.textContent = "Capturing the visible tab…";
-      const wasOpen = open; shell.classList.remove("open"); menu.hidden = true; view.hidden = true;
       try {
-        const result = await new Promise((resolve, reject) => {
-          chrome.runtime.sendMessage({ type: "CAPTURE_VISIBLE_TAB" }, response => {
-            const runtimeError = chrome.runtime.lastError;
-            if (runtimeError) reject(new Error(runtimeError.message));
-            else if (!response?.ok || !response.dataUrl) reject(new Error(response?.error || "Could not capture this tab."));
-            else resolve(response);
-          });
-        });
-        screenshotDataUrl = result.dataUrl; preview.src = screenshotDataUrl; preview.style.display = "block"; clearShot.hidden = false;
+        screenshotDataUrl = await captureVisibleQuestion();
+        preview.src = screenshotDataUrl; preview.style.display = "block"; clearShot.hidden = false;
         status.textContent = "Screenshot captured. Gemini will receive this image and the optional text below.";
       } catch (error) { status.textContent = "Screenshot failed: " + (error.message || "Try again."); }
-      finally {
-        if (wasOpen && activeView === "quiz") { shell.classList.add("open"); view.hidden = false; }
-        capture.disabled = false;
-      }
+      finally { capture.disabled = false; }
     });
-    analyze.addEventListener("click", async () => {
-      if (waiting) return;
-      const prompt = question.value.trim();
-      const options = choices.value.split(/\n+/).map(value => value.trim()).filter(Boolean).slice(0, 8);
-      if (!screenshotDataUrl && (!prompt || options.length < 2)) {
-        status.textContent = "Capture a screenshot of the question, or enter a question and at least two choices."; return;
-      }
-      if (prompt.length > 1200 || options.some(value => value.length > 200)) { status.textContent = "The question or an answer choice is too long."; return; }
-      waiting = true; analyze.disabled = true; capture.disabled = true;
-      status.textContent = "Sending the screenshot to Gemini…"; answer.textContent = "Reading the question…";
-      try {
-        const stored = await new Promise(resolve => chrome.storage.local.get(["superstarSessionToken", "quickReply"], resolve));
-        const sessionToken = stored.superstarSessionToken || "";
-        if (!sessionToken) throw new Error("Sign in to Superstar first, then reload this game tab.");
-        const response = await fetch("https://superstar-oa7t.onrender.com/api/ai/answer", {
-          method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + sessionToken },
-          body: JSON.stringify({ question: prompt, choices: options, screenshotDataUrl, quickReply: stored.quickReply !== false }),
-          signal: AbortSignal.timeout(35000)
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || "Could not analyze this question.");
-        answer.textContent = data.answer
-          ? "Suggested answer: " + data.answer + "\n\n" + (data.explanation || "No explanation was returned.") + "\n\nConfidence: " + Math.round((data.confidence || 0) * 100) + "%"
-          : "No confident match. " + (data.explanation || "Try capturing a clearer screenshot.");
-        status.textContent = "Suggestion ready. Review it and choose your answer yourself.";
-      } catch (error) {
-        const message = error && error.message ? error.message : "Question helper unavailable.";
-        status.textContent = "Request failed: " + message; answer.textContent = "The AI request did not complete. " + message;
-        console.error("Superstar question helper failed:", error);
-      } finally { waiting = false; analyze.disabled = false; capture.disabled = false; }
-    });
+    analyze.addEventListener("click", () => requestSuggestion(screenshotDataUrl, false));
+    quizAutoCleanup = () => { disposed = true; stopAuto(); };
   }
+
 
   function renderGames() {
     viewtitle.textContent = "Games";
