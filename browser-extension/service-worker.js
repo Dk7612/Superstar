@@ -100,8 +100,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "SET_MINI_MODE") {
     const mode = message.mode === "full-site" ? "full-site" : "ai-helper";
     savePreferencesToAccount({ miniWindowMode: mode })
-      .then(ok => sendResponse({ ok, mode }))
-      .catch(() => sendResponse({ ok: false, mode }));
+      .then(async ok => {
+        const stored = await chrome.storage.local.get("quickReply");
+        sendResponse({ ok, mode, quickReply: stored.quickReply !== false });
+      }).catch(() => sendResponse({ ok: false, mode }));
     return true;
   }
   if (message.type === "SET_QUICK_REPLY") {
