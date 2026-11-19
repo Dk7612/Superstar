@@ -28,6 +28,7 @@ function validPermissions(value) {
     PERMISSION_KEYS.every(key => typeof value[key] === "boolean");
 }
 function effectivePermissions(code) {
+  if (users[code]?.role === "admin") return { ...ALL_GUEST_PERMISSIONS };
   return { ...ALL_GUEST_PERMISSIONS, ...defaultGuestPermissions, ...(guestPermissions[code] || {}) };
 }
 if (!adminCode) {
