@@ -18,6 +18,8 @@
       if (!response.ok) { host.style.display = "none"; return; }
       const permissions = await response.json();
       host.style.display = permissions.extension === true ? "block" : "none";
+      const aiOption = root?.querySelector?.('[data-view="ai"]');
+      if (aiOption) aiOption.hidden = permissions.ai !== true;
     } catch { host.style.display = "none"; }
   }
   checkExtensionAccess();
