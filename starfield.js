@@ -56,6 +56,8 @@
     lastFrameTime = 0;
   }
 
+  let animationActive = false;
+
   function draw(timestamp = 0) {
     const [directionX, directionY] = directions[directionSelect.value] || directions.left;
     const speedMultiplier = speeds[speedSelect.value] || speeds.normal;
@@ -89,7 +91,8 @@
       context.fill();
     }
 
-    if (!reducedMotion.matches) window.requestAnimationFrame(draw);
+    if (!reducedMotion.matches && document.visibilityState === "visible") window.requestAnimationFrame(draw);
+    else animationActive = false;
   }
 
   try {
@@ -114,12 +117,22 @@
     const settings = document.querySelector(".star-settings[open]");
     if (settings && !settings.contains(event.target)) settings.open = false;
   });
-  window.addEventListener("resize", resize);
+  window.addEventListener("resize", resize, { passive: true });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && !reducedMotion.matches && !animationActive) {
+      animationActive = true;
+      lastFrameTime = 0;
+      window.requestAnimationFrame(draw);
+    }
+  });
   reducedMotion.addEventListener("change", () => {
     lastFrameTime = 0;
     draw();
   });
   applySettings();
   resize();
-  if (!reducedMotion.matches) window.requestAnimationFrame(draw);
+  if (!reducedMotion.matches && document.visibilityState === "visible") {
+    animationActive = true;
+    window.requestAnimationFrame(draw);
+  }
 })();
