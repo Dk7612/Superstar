@@ -380,3 +380,5 @@ The following captures the known requests and decisions from the project history
 - Admin navigation and workspace visibility are gated by the verified admin session role. The `/admin` route keeps the login form available when signed out and does not render admin panels for guests.
 
 - The starfield also stops when the dashboard hides its canvas on the signed-out screen and restarts when the authenticated layout becomes visible; this avoids animation work behind the login screen.
+
+- The shared starfield settings script supports both the new standalone Settings page and the hidden dashboard controls; it no longer assumes settings live inside a dropdown.
