@@ -171,3 +171,18 @@ The following captures the known requests and decisions from the project history
 - \`GET /admin/ideas\` is protected by \`requireAdmin\`; the inbox appears only in the authenticated admin dashboard. It displays summaries, category, date, and original text, using \`textContent\` to avoid HTML injection.
 - Admins can copy the summary and original submission to bring selected ideas into a ChatGPT conversation. There is no public read endpoint.
 - Verification: syntax-check \`server.js\`; validate the ideas page script; test valid/invalid/oversized submissions, Gemini failures, rate limits, public 403 access to \`/admin/ideas\`, admin access, and persistence across restarts on the configured Render disk.
+
+
+## Hover launcher and mini-app menu (extension v1.2.0)
+
+- Replaced the always-visible AI chat launcher with a minimal bottom-left Superstar logo. The launcher button itself has a transparent background, no border, and no panel while idle.
+- Hovering the logo opens a compact translucent menu. The menu and logo share one hover/focus boundary; leaving that area hides the menu. Keyboard Escape closes it, and keyboard focus leaving the widget also closes it. On touch devices, tapping the logo opens the menu and the close control dismisses it.
+- The menu currently offers Games, AI Assistant, Subway Surfers Focus, and Full website. The website option opens the full Superstar site, which retains the complete website experience and game library.
+- The extension Games view intentionally contains only the built-in Flappy Bird mini-game. The full Games page on the website is not restricted by this extension-only selection.
+- The AI view uses the existing server-side `POST /api/ai/chat` endpoint and keeps a short in-memory conversation for the current page load. No API key is included in extension code.
+- Subway Surfers Focus is currently a lightweight 25-minute focus timer; it does not embed or reproduce Subway Surfers gameplay or video. The timer continues when the hover menu closes and is reset only by its Reset control.
+- Flappy Bird is a small original canvas mini-game with pointer/tap and Space controls, scoring, collision detection, and restart. It runs only while its Games view is active.
+- The launcher is rendered in a closed Shadow DOM. It does not inspect page text, hidden content, or host-page controls. It remains injected on pages covered by the manifest's existing content-script match patterns.
+- Bumped `browser-extension/manifest.json` to 1.2.0. Keep the existing persistent CRX signing key unchanged for future signed releases.
+- Verification checklist: parse manifest JSON; run `node --check browser-extension/global-player.js`; manually load/reload the extension in Opera GX; verify idle state shows only the transparent star; hover opens the menu; moving the pointer away closes it; test AI multi-turn chat, Flappy Bird pointer/Space/restart, focus timer continuing after the menu hides, and Full website navigation. Verify the website's complete Games page remains unchanged.
+- Do not claim the change is live until this branch is merged and the Render/extension publishing workflows have succeeded.
