@@ -34,6 +34,9 @@
     input, select { background:#0b1228; color:#f3f5ff; border:1px solid #46557c; border-radius:6px; padding:9px; }
     .table-wrap { overflow-x:auto; }
     .user-name-input { width:min(190px, 100%); margin:4px; }
+    .permission-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin:12px 0; }
+    .permission-grid label { display:flex; align-items:center; gap:8px; padding:8px; background:rgba(8,13,32,.3); border:1px solid rgba(190,205,255,.15); border-radius:7px; }
+    .permission-grid input { accent-color:#7188ef; }
     table { border-collapse:collapse; width:100%; min-width:700px; background:rgba(8,13,32,.35); }
     th, td { padding:8px; border-bottom:1px solid rgba(190,205,255,.18); text-align:left; }
     .notice { color:#b7c1df; }
@@ -168,6 +171,17 @@
     <p class="notice">Leave the field blank for a random code. Custom codes use 4-32 letters, numbers, hyphens, or underscores.</p>
     <div id="newCode"></div>
 
+    <h2>Default guest permissions</h2>
+    <p class="notice">These apply to newly generated guest codes only. Existing codes keep their individual settings.</p>
+    <div id="defaultGuestPermissions" class="permission-grid">
+      <label><input type="checkbox" data-default-permission="dashboard" checked> Dashboard</label>
+      <label><input type="checkbox" data-default-permission="games" checked> Games</label>
+      <label><input type="checkbox" data-default-permission="extension" checked> Extension</label>
+      <label><input type="checkbox" data-default-permission="ai" checked> AI Assistant</label>
+      <label><input type="checkbox" data-default-permission="ideas" checked> Feature Ideas</label>
+    </div>
+    <button id="saveDefaultPermissions" type="button">Save default permissions</button>
+    <p class="notice" id="defaultPermissionsStatus" role="status"></p>
     <h2>User List</h2>
     <ul id="userList"></ul>
   </div>
@@ -197,6 +211,20 @@
     <a href="/ideas"><button type="button">Suggest an Idea</button></a>
   </footer>
 </div>
+
+<dialog id="permissionsDialog" aria-labelledby="permissionsDialogTitle">
+  <h2 id="permissionsDialogTitle">Guest access permissions</h2>
+  <p class="notice" id="permissionsDialogCode"></p>
+  <div class="permission-grid" id="userPermissionOptions">
+    <label><input type="checkbox" data-user-permission="dashboard" checked> Dashboard</label>
+    <label><input type="checkbox" data-user-permission="games" checked> Games</label>
+    <label><input type="checkbox" data-user-permission="extension" checked> Extension</label>
+    <label><input type="checkbox" data-user-permission="ai" checked> AI Assistant</label>
+    <label><input type="checkbox" data-user-permission="ideas" checked> Feature Ideas</label>
+  </div>
+  <p class="notice" id="userPermissionsStatus" role="status"></p>
+  <div class="dialog-actions"><button id="cancelPermissions" type="button">Cancel</button><button id="saveUserPermissions" class="generate" type="button">Save permissions</button></div>
+</dialog>
 
 <dialog id="banDialog" aria-labelledby="banDialogTitle">
   <h2 id="banDialogTitle">Confirm ban</h2>
@@ -464,6 +492,35 @@ async function generateCode() {
   loadUsers();
 }
 
+let editingPermissionCode = null;
+const permissionNames = ["dashboard", "games", "extension", "ai", "ideas"];
+async function loadDefaultPermissions() {
+  const response = await adminFetch("/admin/permissions", { headers: adminHeaders() });
+  if (!response.ok) return;
+  const data = await response.json();
+  for (const key of permissionNames) document.querySelector('[data-default-permission="' + key + '"]').checked = data.defaults[key] !== false;
+}
+document.getElementById("saveDefaultPermissions").addEventListener("click", async () => {
+  const permissions = Object.fromEntries(permissionNames.map(key => [key, document.querySelector('[data-default-permission="' + key + '"]').checked]));
+  const response = await adminFetch("/admin/permissions/defaults", { method:"PUT", headers:adminHeaders(true), body:JSON.stringify({permissions}) });
+  document.getElementById("defaultPermissionsStatus").textContent = response.ok ? "Defaults saved. Existing guest codes were not changed." : ((await response.json()).error || "Could not save defaults.");
+});
+function openUserPermissions(user) {
+  editingPermissionCode = user.code;
+  document.getElementById("permissionsDialogCode").textContent = "Access code: " + user.code;
+  for (const key of permissionNames) document.querySelector('[data-user-permission="' + key + '"]').checked = user.permissions?.[key] !== false;
+  document.getElementById("userPermissionsStatus").textContent = "";
+  document.getElementById("permissionsDialog").showModal();
+}
+document.getElementById("cancelPermissions").addEventListener("click", () => document.getElementById("permissionsDialog").close());
+document.getElementById("saveUserPermissions").addEventListener("click", async () => {
+  if (!editingPermissionCode) return;
+  const permissions = Object.fromEntries(permissionNames.map(key => [key, document.querySelector('[data-user-permission="' + key + '"]').checked]));
+  const response = await adminFetch("/admin/user-permissions", { method:"PUT", headers:adminHeaders(true), body:JSON.stringify({code:editingPermissionCode,permissions}) });
+  if (!response.ok) { document.getElementById("userPermissionsStatus").textContent = (await response.json()).error || "Could not save permissions."; return; }
+  document.getElementById("permissionsDialog").close(); editingPermissionCode = null; loadUsers();
+});
+
 async function loadUsers() {
   const res = await adminFetch("/admin/users", { headers:adminHeaders()});
   if (!res.ok) return alert("Could not load users.");
@@ -484,6 +541,10 @@ async function loadUsers() {
       revealButton.textContent = isHidden ? "Hide code" : "Show code";
     });
     li.append(codeLabel, " ", revealButton, ` - ${user.role} - ${user.lockedDevice||"not locked"} `);
+    const permissionsButton = document.createElement("button");
+    permissionsButton.type = "button"; permissionsButton.textContent = "Permissions";
+    permissionsButton.addEventListener("click", () => openUserPermissions(user));
+    li.appendChild(permissionsButton);
     const button = document.createElement("button");
     button.className = "reset";
     button.textContent = "Reset Device";
