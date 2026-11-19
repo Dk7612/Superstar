@@ -599,15 +599,17 @@ document.getElementById("saveUserPermissions").addEventListener("click", async (
   document.getElementById("permissionsDialog").close(); editingPermissionCode = null; loadUsers();
 });
 
+const userListSearchIndex = new WeakMap();
 async function loadUsers() {
   const res = await adminFetch("/admin/users", { headers:adminHeaders()});
   if (!res.ok) return alert("Could not load users.");
   const users = await res.json();
   const list = document.getElementById("userList");
-  list.innerHTML="";
+  list.replaceChildren();
   for(const user of users) {
     const { code } = user;
     const li = document.createElement("li");
+    userListSearchIndex.set(li, [code, user.name || "", user.role || ""].join(" ").toLowerCase());
     const codeLabel = document.createElement("span");
     codeLabel.textContent = "••••••";
     const revealButton = document.createElement("button");
@@ -654,11 +656,12 @@ async function loadUsers() {
 }
 
 
-const userListFilter = document.getElementById("userListFilter");
-if (userListFilter) userListFilter.addEventListener("input", () => {
-  const query = userListFilter.value.trim().toLowerCase();
+const userSearch = document.getElementById("userSearch");
+if (userSearch) userSearch.addEventListener("input", () => {
+  const query = userSearch.value.trim().toLowerCase();
   document.querySelectorAll("#userList > li").forEach(item => {
-    item.hidden = query !== "" && !item.textContent.toLowerCase().includes(query);
+    const searchable = (userListSearchIndex.get(item) || "") + " " + item.textContent.toLowerCase();
+    item.hidden = query !== "" && !searchable.includes(query);
   });
 });
 
