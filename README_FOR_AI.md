@@ -193,3 +193,15 @@ The following captures the known requests and decisions from the project history
 - Restored ordinary JavaScript backtick delimiters in both template literals. No launcher behavior, permissions, or host-page access was changed.
 - Regression verification: run `node --check browser-extension/global-player.js` and inspect the published extension package before release. The same syntax error can affect every tab because the same content script is injected into each matching page.
 - Bump the extension version and publish a newly signed CRX using the existing persistent signing key; do not change the extension identity.
+
+
+## Extension v1.2.2 hover-boundary and logo-background fix
+
+- Fixed the hover-to-menu transition that could dismiss the popup while the pointer moved from the bottom-left launcher up into the menu. The launcher, menu, and tool view now each manage pointer entry/exit, with a 1,000 ms delayed close so the pointer can cross the small visual gap.
+- Replaced immediate focus-loss dismissal with the same delayed close. Clicking a menu option or moving focus between controls no longer instantly hides the menu; an active pointer over the widget keeps it open.
+- Touch interaction remains click-based; the hover dismissal timer is only driven by mouse pointer events.
+- The shared `/favicon.png` asset has a dark navy square background baked into the image. Applied CSS `mix-blend-mode: screen` to both logo instances so the near-black/navy field blends into the page while keeping the bright multicolor star visible; the launcher button itself remains transparent and has no border or shadow.
+- No new permissions, page-reading behavior, or host-page interaction was added.
+- Bumped the extension version to 1.2.2. Publish with the existing persistent CRX signing key and do not change the extension identity.
+- Regression checklist: run `node --check browser-extension/global-player.js`; validate manifest JSON; test moving the mouse from the star to each menu option, clicking Games/AI/Focus/Full website, moving between menu and launcher, waiting outside the widget for dismissal, keyboard focus/Tab/Escape, and touch tap behavior. Confirm the star's navy square is visually blended away on both light and dark page backgrounds.
+- Runtime browser verification is still required; source changes and a successful packaging workflow alone do not prove the visual result in Opera GX.
