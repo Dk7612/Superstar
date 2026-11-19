@@ -285,8 +285,10 @@
           : "No confident match. " + (data.explanation || "Try checking the question and choices.");
         status.textContent = "Suggestion ready. Review it and choose your answer yourself.";
       } catch (error) {
-        status.textContent = error.message || "Question helper unavailable.";
-        answer.textContent = "No suggestion yet.";
+        const message = error && error.message ? error.message : "Question helper unavailable.";
+        status.textContent = "Request failed: " + message;
+        answer.textContent = "The AI request did not complete. " + message;
+        console.error("Superstar question helper failed:", error);
       } finally {
         waiting = false;
         analyze.disabled = false;
