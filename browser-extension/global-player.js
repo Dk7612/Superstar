@@ -82,8 +82,14 @@
   let focusInterval = null;
   let focusSeconds = 25 * 60;
   let gameFrame = 0;
+  let gameKeyHandler = null;
 
-  function stopGame() { if (gameFrame) cancelAnimationFrame(gameFrame); gameFrame = 0; }
+  function stopGame() {
+    if (gameFrame) cancelAnimationFrame(gameFrame);
+    gameFrame = 0;
+    if (gameKeyHandler) window.removeEventListener("keydown", gameKeyHandler);
+    gameKeyHandler = null;
+  }
   function clearFocusTimer() { if (focusInterval) clearInterval(focusInterval); focusInterval = null; }
   function showMenu() {
     open = true; menu.hidden = false; view.hidden = true;
@@ -91,7 +97,7 @@
   }
   function hideMenu() {
     open = false; menu.hidden = true; view.hidden = true;
-    stopGame(); clearFocusTimer();
+    stopGame();
     launcher.setAttribute("aria-expanded", "false");
   }
   function showView(name) {
@@ -109,7 +115,7 @@
     return el;
   }
   function renderAI() {
-    clearFocusTimer(); viewtitle.textContent = "Superstar AI";
+    viewtitle.textContent = "Superstar AI";
     const messages = element("div", "messages");
     messages.setAttribute("aria-live", "polite");
     if (!history.length) messages.appendChild(element("p", "welcome", "Hey! Ask me anything."));
@@ -145,7 +151,7 @@
     input.focus();
   }
   function renderGames() {
-    clearFocusTimer(); viewtitle.textContent = "Games";
+    viewtitle.textContent = "Games";
     const title = element("p","welcome","Only Flappy Bird is available in the extension for now. Visit the website for the full games library.");
     const canvas = element("canvas"); canvas.width = 280; canvas.height = 360; canvas.setAttribute("aria-label","Flappy Bird game. Click or press Space to flap.");
     const bar = element("div","gamebar");
@@ -174,10 +180,10 @@
     function flap(){if(!running){if(!started)reset();return;}velocity=-5.4;}
     canvas.addEventListener("pointerdown",flap);
     const keyHandler=e=>{if(e.code==="Space"&&!view.hidden&&open){e.preventDefault();flap();}};
-    window.addEventListener("keydown",keyHandler);
+    gameKeyHandler = keyHandler;
+    window.addEventListener("keydown",gameKeyHandler);
     start.addEventListener("click",reset);
     draw();
-    view.addEventListener("DOMNodeRemoved",()=>window.removeEventListener("keydown",keyHandler),{once:true});
   }
   function renderFocus() {
     stopGame(); viewtitle.textContent = "Subway Surfers Focus";
