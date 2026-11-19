@@ -285,3 +285,9 @@ The following captures the known requests and decisions from the project history
 
 - The saved Quick replies preference is passed to the conversational AI endpoint. When enabled, Superstar AI is instructed to keep responses brief and direct; when disabled, it can provide fuller explanations.
 - The extension's mini-window mode and Quick replies preference are synchronized to the account and retained in local extension storage.
+
+
+## Client-side ban session refresh
+
+- The main dashboard and Games page periodically validate the signed-in session against the server. If a device/IP ban revokes the session, the affected page redirects to the login screen within approximately five seconds.
+- The dashboard waits for the extension's session-token handoff response before requesting synced extension preferences, avoiding a race on first login.
