@@ -62,8 +62,8 @@
   const alpha = document.createElementNS("http://www.w3.org/2000/svg", "feComponentTransfer");
   const alphaFunc = document.createElementNS("http://www.w3.org/2000/svg", "feFuncA");
   alphaFunc.setAttribute("type", "linear");
-  alphaFunc.setAttribute("slope", "4");
-  alphaFunc.setAttribute("intercept", "-0.15");
+  alphaFunc.setAttribute("slope", "2.2");
+  alphaFunc.setAttribute("intercept", "-0.12");
   alpha.appendChild(alphaFunc);
   filter.append(matrix, alpha);
   defs.appendChild(filter);
@@ -226,12 +226,9 @@
   }
   function formatTime(s){return Math.floor(s/60).toString().padStart(2,"0")+":"+Math.floor(s%60).toString().padStart(2,"0");}
 
-  launcher.addEventListener("pointerenter", e => {
-    if (e.pointerType === "mouse" && !open) showMenu();
-  });
-  launcher.addEventListener("click",()=>{
-    if (activeView === "focus") hideMenu();
-    else if (!open) showMenu();
+  launcher.addEventListener("click", () => {
+    if (open) hideMenu();
+    else showMenu();
   });
   // Keep the menu open while the pointer moves away; dismiss only on an outside click.
   document.addEventListener("click", e => {
