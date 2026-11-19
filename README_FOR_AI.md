@@ -294,3 +294,10 @@ The following captures the known requests and decisions from the project history
 
 
 - The optional Gimkit/Blooket helper sends the account's Quick replies preference with each suggestion request; the backend uses it to choose concise or fuller explanations. The helper only suggests an answer and does not click or submit quiz answers.
+
+
+## Dashboard permission-overlay login hotfix
+
+- Fixed the access-denied overlay in `index.html`: removed the inline `display:grid` declaration that overrode the browser's built-in `[hidden]` behavior. The overlay now stays hidden on initial page load and only appears when the authenticated guest account actually lacks Dashboard permission.
+- This restores visibility of the login form for signed-out visitors and users who need to sign in with an admin access code to repair a guest permission setting.
+- Verification: inspect the overlay markup and confirm it has the HTML `hidden` attribute without an inline `display` override; run a browser smoke test for logged-out, admin, dashboard-enabled guest, and dashboard-disabled guest states before release.
