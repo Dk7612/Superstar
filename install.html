@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080f22">
+  <title>Install Superstar Extension</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, system-ui, Segoe UI, sans-serif; background:#080f22; color:#f4f6ff; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; padding:32px 18px; background:radial-gradient(ellipse at top,#172b55 0,#080f22 62%); }
+    main { width:min(720px,100%); margin:7vh auto; padding:clamp(22px,5vw,42px); border:1px solid #35466d; border-radius:20px; background:#101a33e8; box-shadow:0 20px 70px #0007; }
+    h1 { margin:0 0 10px; font-size:clamp(2rem,6vw,3rem); }
+    p,li { color:#c6d0e9; line-height:1.65; }
+    .download { display:inline-block; margin:14px 0; padding:13px 20px; border-radius:10px; background:#8b9cff; color:#091126; font-weight:800; text-decoration:none; }
+    .download:hover { filter:brightness(1.1); }
+    .steps { padding-left:22px; }
+    .note { border-left:3px solid #e6b45e; padding:10px 14px; background:#e6b45e12; border-radius:4px; }
+    a { color:#aebcff; }
+    code { color:#f0d69a; }
+    footer { margin-top:28px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Install Superstar</h1>
+    <p>Get the Superstar Mini Window extension for Opera GX and compatible Chromium browsers.</p>
+    <a class="download" href="https://github.com/Dk7612/Superstar/releases/latest/download/Superstar.crx">Download Superstar Extension (.crx)</a>
+    <p><a href="https://github.com/Dk7612/Superstar/releases">View all extension releases</a></p>
+    <h2>Install in Opera GX</h2>
+    <ol class="steps">
+      <li>Download <code>Superstar.crx</code> using the button above.</li>
+      <li>Open <code>opera://extensions</code> in Opera GX.</li>
+      <li>Turn on <strong>Developer mode</strong>.</li>
+      <li>Drag the downloaded <code>Superstar.crx</code> file onto the Extensions page and confirm the installation if Opera allows it.</li>
+      <li>Open <a href="/">Superstar</a>, sign in with your access code, and make sure that access code has the <strong>Extension</strong> permission enabled.</li>
+    </ol>
+    <p class="note"><strong>Automatic updates:</strong> Install the signed CRX package from this page, not an unpacked folder. Superstar publishes signed updates through its update feed, but Opera controls when it checks for updates and may enforce its own installation restrictions. The first switch from an unpacked Developer Mode copy to the signed package is a one-time manual install.</p>
+    <p>If Opera refuses the downloaded CRX, it may require a store-distributed listing instead. The signed package is not yet an Opera Add-ons Store listing.</p>
+    <footer><a href="/">← Back to Superstar</a></footer>
+  </main>
+</body>
+</html>
