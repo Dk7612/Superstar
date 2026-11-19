@@ -464,7 +464,12 @@ function showAuthenticatedDashboard(session, remembered = false) {
   document.getElementById("loginCard").style.display = "none";
   document.getElementById("welcomePanel").style.display = "block";
   document.getElementById("miniWindowSettings").style.display = "block";
-  syncMiniWindowSettings();
+  miniWindowStatus.textContent = "Checking for the Superstar browser extension…";
+  setTimeout(() => {
+    if (miniWindowStatus.textContent === "Checking for the Superstar browser extension…") {
+      miniWindowStatus.textContent = "Extension not detected. Install the extension and reload this page.";
+    }
+  }, 1800);
   document.getElementById("welcomeMessage").textContent = remembered
     ? "Signed in as admin on this remembered device. Enjoy the stars."
     : `Signed in as ${role}. Enjoy the stars.`;
@@ -834,6 +839,9 @@ window.addEventListener("message", event => {
     miniWindowStatus.textContent = message.ok
       ? "Quick-reply preference saved to this account and extension."
       : "Could not save preference. Check that the extension is connected and Extension permission is enabled.";
+  } else if (message.type === "SET_SESSION_RESULT") {
+    if (message.ok) syncMiniWindowSettings();
+    else miniWindowStatus.textContent = "Extension not detected or the account does not have Extension permission.";
   } else if (message.type === "OPEN_MINI_WINDOW_RESULT") {
     miniWindowStatus.textContent = message.ok
       ? "Opening your Superstar mini-window…"
