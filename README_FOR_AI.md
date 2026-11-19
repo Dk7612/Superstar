@@ -364,3 +364,13 @@ The following captures the known requests and decisions from the project history
 - The dashboard hides the AI navigation link when the signed-in account lacks AI permission. Server-side endpoint permission checks remain authoritative.
 - Quick Reply is strictly a quiz-answer preference. It affects `POST /api/ai/answer` requests from the Gimkit/Blooket helper and standalone question helper only. It must never shorten general conversational chat in either the extension or website AI tab.
 - Verification: run `node --check server.js`, `node --check browser-extension/global-player.js`, and `node --check browser-extension/helper.js`; parse inline dashboard JavaScript; manually test signed-in AI chat, signed-out redirect, AI-disabled guest, and both Quick Reply settings on quiz answers while confirming ordinary chat remains naturally detailed.
+
+
+## Dashboard workspace redesign and performance pass
+
+- Authenticated home page is an overview with quick links. The gear button opens a dedicated Settings workspace for extension preferences and appearance.
+- Admin accounts receive a separate Admin workspace with Access codes, Login activity, Security & bans, and private Feature Ideas sub-tabs. Guest accounts never receive the Admin tab. Existing admin actions continue to call the same server endpoints protected by `requireAdmin`.
+- Access-code search is available; codes remain masked until explicitly revealed. The private admin data and actions remain server-authorized.
+- Login monitoring runs only while the admin activity section is visible and the browser tab is foregrounded, at 15 seconds rather than every four seconds. Session heartbeat should remain responsive while avoiding unnecessary requests. Server-side authorization remains authoritative.
+- Starfield rendering is lighter: fewer particles, a lower device-pixel-ratio cap, no per-particle gradient allocations, and animation pauses in hidden tabs or when reduced motion is preferred. Dashboard cards avoid expensive backdrop blur.
+- Verification: syntax-check inline dashboard JavaScript and `starfield.js`; manually test admin/guest navigation, settings, every admin sub-tab, access-code search, saved appearance, reduced-motion behavior, hidden-tab pause/resume, and session-ban detection.
