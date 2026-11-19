@@ -231,3 +231,15 @@ The following captures the known requests and decisions from the project history
 - Clicking the Superstar launcher star closes the Focus view. The launcher hover handler must not switch away from Focus while the GUI is already open.
 - Other extension menu/tool views retain the normal click-outside-to-dismiss behavior; the explicit × and Escape close controls remain available.
 - Regression checks: open Focus, click outside (must remain open), click the launcher (must close), then verify outside clicks still dismiss other views.
+
+
+## Guest tab controls and contextual quiz helper
+
+- Admin guest controls: Dashboard, Games tab, Extension tab / mini-window settings, AI assistant, and Feature ideas. Admin can set defaults for new guest codes and independent per-guest overrides.
+- Guest access persists in `DATA_DIR/service-data.json`. Existing data migrates with all sections enabled. Changing defaults does not overwrite existing guest settings.
+- Admin can disable/re-enable guest accounts. Disabling revokes active sessions immediately, persists disabled status, and blocks future login. Re-enabling restores login subject to saved section permissions.
+- `GET /session/me` reports authenticated role and guest access. Games page checks this endpoint; game-save APIs enforce Games permission. AI chat/answer endpoints require a valid session and enforce AI permission. Authenticated guest idea submissions are blocked when Ideas is disabled; anonymous public submissions remain unchanged.
+- Dashboard hides Games, Extension settings, and Ideas links according to guest access.
+- Extension v1.2.3 shows a Gimkit/Blooket Helper option only on those domains. It reads visible rendered page text and visible enabled button labels only after explicit Analyze click. Gemini returns a suggestion and optional short explanation; it never reads hidden answer keys or clicks/submits answers.
+- No new broad tabs permission is requested: the helper operates only on the current page after explicit action. Existing content-script host access remains unchanged.
+- Verify syntax for server/extension scripts, parse manifest JSON and inline scripts, test persistent-state migration, defaults inheritance, per-account overrides, admin-only writes, disabled-session revocation and login rejection, re-enable, section/API gates, and helper behavior on supported/unsupported sites. Production runtime behavior must be smoke-tested before claiming it works.
