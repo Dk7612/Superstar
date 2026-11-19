@@ -193,3 +193,41 @@ The following captures the known requests and decisions from the project history
 - Restored ordinary JavaScript backtick delimiters in both template literals. No launcher behavior, permissions, or host-page access was changed.
 - Regression verification: run `node --check browser-extension/global-player.js` and inspect the published extension package before release. The same syntax error can affect every tab because the same content script is injected into each matching page.
 - Bump the extension version and publish a newly signed CRX using the existing persistent signing key; do not change the extension identity.
+
+
+## Extension v1.2.2 hover-boundary and logo-background fix
+
+- Fixed the hover-to-menu transition that could dismiss the popup while the pointer moved from the bottom-left launcher up into the menu. The launcher, menu, and tool view now each manage pointer entry/exit, with a 1,000 ms delayed close so the pointer can cross the small visual gap.
+- Replaced immediate focus-loss dismissal with the same delayed close. Clicking a menu option or moving focus between controls no longer instantly hides the menu; an active pointer over the widget keeps it open.
+  - Focusout dismissal is suppressed while the mouse pointer is still inside the widget, including the moment an option click replaces the menu contents with a tool view.
+- Touch interaction remains click-based; the hover dismissal timer is only driven by mouse pointer events.
+- The shared `/favicon.png` asset has a dark navy square background baked into the image. Removed blend-mode styling. Both logo instances now use an SVG luminance-to-alpha filter that makes the dark pixels baked into the favicon transparent while retaining the bright multicolor star; the launcher button itself remains transparent and has no border or shadow.
+- No new permissions, page-reading behavior, or host-page interaction was added.
+- Bumped the extension version to 1.2.2. Publish with the existing persistent CRX signing key and do not change the extension identity.
+- Regression checklist: run `node --check browser-extension/global-player.js`; validate manifest JSON; test moving the mouse from the star to each menu option, clicking Games/AI/Focus/Full website, moving between menu and launcher, waiting outside the widget for dismissal, keyboard focus/Tab/Escape, and touch tap behavior. Confirm the favicon's dark square is actually transparent, not blended against the webpage, on both light and dark page backgrounds.
+- Runtime browser verification is still required; source changes and a successful packaging workflow alone do not prove the visual result in Opera GX.
+
+
+## Extension launcher hit-area sizing refinement
+
+- Keep the closed launcher shell at exactly the 46×46 px launcher width so the transparent, otherwise-empty portion of the extension does not intercept clicks across the bottom-left of the host webpage.
+- Add the `open` class only while the menu/tool GUI is visible. That state expands the shell to the menu's responsive width (up to 310 px); closing the GUI removes the class and restores the compact hit area.
+- The launcher itself remains 46×46 px in both states. Only the surrounding widget area expands when the GUI needs room for its controls.
+- Regression checks: with the menu closed, click and drag across the area to the right of the star and confirm the webpage receives those interactions; open the menu and confirm all menu options and tool controls remain clickable; close it and confirm the hit area shrinks again. Re-run `node --check browser-extension/global-player.js` and validate the manifest before publishing.
+
+
+## Extension menu dismissal behavior refinement
+
+- The launcher still opens the menu on mouse hover and on click/tap.
+- Moving the pointer away from the launcher, menu, or tool view no longer dismisses the GUI. Removed pointer-leave timers and focus-loss dismissal.
+- The GUI now closes only when the user clicks outside the extension host. The document-level click listener runs in capture phase and checks the composed event path, so clicks inside the closed Shadow DOM (menu options, AI input/send, game, focus controls, back/close) are treated as inside and do not accidentally dismiss the GUI.
+- The explicit × close control and Escape key continue to close the GUI. Clicking the launcher while already open does not force-close it; an outside click is the dismissal gesture.
+- Regression checks: open the launcher, move the pointer anywhere outside without clicking (GUI must remain open), click outside (GUI must close), then verify all internal controls remain usable and do not trigger outside dismissal. Confirm closed hit area remains 46×46 px and open hit area expands with the GUI.
+
+
+## Subway Surfers Focus view persistence
+
+- When the Subway Surfers Focus tool is open, clicks outside the extension host do not dismiss the GUI; the focus timer remains visible while the user interacts elsewhere on the page.
+- Clicking the Superstar launcher star closes the Focus view. The launcher hover handler must not switch away from Focus while the GUI is already open.
+- Other extension menu/tool views retain the normal click-outside-to-dismiss behavior; the explicit × and Escape close controls remain available.
+- Regression checks: open Focus, click outside (must remain open), click the launcher (must close), then verify outside clicks still dismiss other views.
