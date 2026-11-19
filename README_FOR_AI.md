@@ -345,3 +345,12 @@ The following captures the known requests and decisions from the project history
 - Manual question and answer-choice text is optional when a screenshot is attached. The old whole-page `document.body.innerText` capture was removed.
 - The server accepts JPEG, PNG, or WebP data URLs under 1.8 MB and uses a 3 MB JSON request limit. Images are sent to Gemini through the server; the Gemini API key is never exposed to the extension.
 - Verification: syntax-check the changed JavaScript, parse the manifest, then manually test screenshot capture, screenshot preview, image-based analysis, and a manual-text-only request.
+
+
+## Auto Fast Answer — extension v1.2.9
+
+- The Gimkit/Blooket Question Helper includes an opt-in Auto Fast Answer toggle, persisted in extension local storage.
+- When enabled, a MutationObserver watches for page UI changes without reading page text. After a debounce, the extension captures the visible tab screenshot and computes a small visual fingerprint; only materially changed screenshots are sent to Gemini, with a minimum capture interval to reduce duplicate requests.
+- The screenshot is captured with the Superstar overlay hidden. Gemini is instructed to read only the question and answer choices. The answer is shown in the helper; the extension does not click, select, type into, or submit any game answer.
+- Leaving the Question Helper stops its observer. Turning the toggle off stops automatic capture immediately.
+- Verification: run syntax checks for `global-player.js` and `service-worker.js`, parse manifest JSON, then manually test toggle persistence, question-change detection, duplicate suppression, manual capture, and disabled mode on Gimkit and Blooket.
