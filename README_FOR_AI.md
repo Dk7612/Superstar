@@ -364,3 +364,14 @@ The following captures the known requests and decisions from the project history
 - The dashboard hides the AI navigation link when the signed-in account lacks AI permission. Server-side endpoint permission checks remain authoritative.
 - Quick Reply is strictly a quiz-answer preference. It affects `POST /api/ai/answer` requests from the Gimkit/Blooket helper and standalone question helper only. It must never shorten general conversational chat in either the extension or website AI tab.
 - Verification: run `node --check server.js`, `node --check browser-extension/global-player.js`, and `node --check browser-extension/helper.js`; parse inline dashboard JavaScript; manually test signed-in AI chat, signed-out redirect, AI-disabled guest, and both Quick Reply settings on quiz answers while confirming ordinary chat remains naturally detailed.
+
+
+## Dashboard redesign, settings page, admin workspace, and performance
+
+- The dashboard home is intentionally lightweight: a welcome panel and responsive tiles for AI, Games, Extension install, and Feature Ideas. Account and extension preferences are moved to the gear-icon **Settings** page at `/settings`.
+- Settings include star direction/speed, light/dark theme, mini-window mode, quiz-only Quick Reply, and opening the extension mini-window. Appearance preferences are saved locally and apply across the dashboard.
+- The **Admin** navigation item appears only for the admin role and opens `/admin`. It reuses the existing admin APIs and protected UI for guest code generation, per-code permissions, default guest permissions, device resets, login history, bans, storage status, and the private feature-idea inbox. Admin API middleware remains the security boundary; hiding navigation is not authorization.
+- The admin workspace loads its large datasets only on `/admin`, not on every dashboard visit. Login monitoring runs only while the admin page is visible and now polls every 20 seconds. Session permission heartbeats run every 30 seconds and skip background tabs.
+- Starfield animation now runs only one animation-frame loop (removing a duplicate loop), pauses while the tab is hidden, resumes on visibility, and respects reduced-motion settings. Canvas resize handling is passive.
+- The extension version is bumped to 1.3.0 so the release pipeline can publish the extension changes already included in the pending AI-tab work.
+- Verification: run Node syntax checks, parse extension manifest JSON, parse inline browser scripts, and manually test admin-vs-guest routing, settings synchronization with Chrome/Opera, theme persistence, reduced motion, background-tab CPU use, and admin polling behavior.
