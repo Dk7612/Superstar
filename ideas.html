@@ -12,8 +12,14 @@ h1{margin:0 0 10px;font-size:clamp(26px,5vw,36px)}p{color:#b8c5e8;line-height:1.
 label{display:block;margin:22px 0 8px;font-weight:700}input,textarea{width:100%;padding:13px;border:1px solid #465780;border-radius:9px;background:#080f22;color:#fff;font:inherit}
 textarea{min-height:150px;resize:vertical;line-height:1.5}button{margin-top:18px;padding:12px 19px;border:0;border-radius:9px;background:#586fe0;color:white;font-weight:700;font-size:15px;cursor:pointer}
 button:disabled{opacity:.6;cursor:wait}#status{min-height:24px;margin-top:14px}footer{padding:20px 0 28px;text-align:center}footer a{color:#b8c5e8}
+  :root[data-theme="light"]{color-scheme:light;background:#f3f6ff;color:#202945}
+  :root[data-theme="light"] body{background:linear-gradient(160deg,#f3f6ff,#e5ecfb 55%,#eee9ff)}
+  :root[data-theme="light"] .card{background:#fff;border-color:#d6def0}
+  :root[data-theme="light"] p{color:#53617e}
+  :root[data-theme="light"] input,:root[data-theme="light"] textarea{background:#fff;color:#202945;border-color:#b9c6e1}
 </style>
 <script>
+try{const saved=JSON.parse(localStorage.getItem("superstar-starfield-settings-v2")||"null");if(saved&&["dark","light"].includes(saved.theme))document.documentElement.dataset.theme=saved.theme;}catch{}
 try {
   const session = JSON.parse(sessionStorage.getItem("superstar-session"));
   if (sessionStorage.getItem("superstar-authenticated") === "1" && session &&
