@@ -231,3 +231,66 @@ The following captures the known requests and decisions from the project history
 - Clicking the Superstar launcher star closes the Focus view. The launcher hover handler must not switch away from Focus while the GUI is already open.
 - Other extension menu/tool views retain the normal click-outside-to-dismiss behavior; the explicit × and Escape close controls remain available.
 - Regression checks: open Focus, click outside (must remain open), click the launcher (must close), then verify outside clicks still dismiss other views.
+
+
+## Guest-code permissions and click-only launcher (work in progress)
+
+- Added an admin-only default permission editor for newly generated guest codes and an individual **Permissions** button beside every generated access code.
+- Permission categories: Dashboard, Games, Extension, AI Assistant, and Feature Ideas. Changing defaults does not overwrite existing guest-code settings; each code can be customized independently.
+- Permission settings are persisted in `DATA_DIR/service-data.json`. Existing guest codes default to full access for backwards compatibility. Admin access and the existing ban system remain unchanged.
+- The game-save API checks the guest's Games permission server-side; this is not just a hidden navigation link.
+- The extension launcher now opens only when the star is clicked. Hover no longer opens it, and clicking the star toggles the menu.
+- The favicon transparency filter uses a low luminance threshold to retain darker star colors while suppressing the dark navy tile. Verify the star and background visually in Opera GX on both light and dark pages.
+- Verification still required: `node --check server.js`, `node --check browser-extension/global-player.js`, manifest JSON validation, default inheritance and per-code override tests, Games API 403 test, and manual click-only launcher testing.
+
+
+## Extension account binding and per-guest access
+
+- The authenticated Superstar dashboard sends its current session token only to the extension content bridge on the exact Superstar production origin. The bridge forwards it to the extension service worker, which stores it in extension-local storage.
+- The floating launcher remains hidden unless the stored session token is valid and the server reports the guest's Extension permission enabled. Permission checks are performed against `GET /account/permissions`; the extension does not rely on a page-supplied permission flag.
+- The extension AI chat sends the stored session token to `POST /api/ai/chat`. The server enforces the AI permission with session authentication. The launcher requires a signed-in Superstar account; after first sign-in, reload tabs to initialize the content script.
+- The AI endpoint and game-save endpoints are permission-gated server-side. The existing ban system is unchanged.
+
+
+## Permission enforcement coverage and release notes
+
+- Existing guest accounts are migrated to a snapshot of the current default permissions on first startup, so changing defaults later does not silently change older accounts.
+- Admin accounts always receive all permissions regardless of guest defaults.
+- Guest permissions are checked for the Dashboard, Games page, Extension launcher/toolbar popup, AI Assistant endpoints, and signed-in Feature Ideas page. Anonymous public idea submissions remain public as before.
+- The AI chat and legacy AI answer endpoints require a valid Superstar session and the guest's AI permission. Both extension AI clients attach the session token from extension-local storage.
+- Extension v1.2.3 contains the click-only launcher and permission-aware menu. The star's dark-background alpha filter has a lower threshold to preserve more of the original star artwork.
+
+
+## Account-backed extension preferences, ban revocation, and installer
+
+- Extension settings live in `chrome.storage.local` and sync to the signed-in Superstar account through `GET/PUT /account/extension-preferences`. The server stores them in `service-data.json`, alongside access codes, bans, permissions, and game progress, so a future app can reuse the same account preferences.
+- Only accounts with the **Extension** permission can read or write extension preferences. The dashboard saves settings only when the extension responds; if the extension is not installed/connected, the preference controls remain unavailable. Disabling Extension permission blocks preference sync server-side.
+- Preferences currently include mini-window mode and a quick-reply setting (default on).
+- Authentication sessions now retain originating device ID and IP. Adding a device/IP ban revokes matching active sessions; subsequent authenticated requests also check the ban list. Older sessions fall back to their latest login record.
+- The admin dashboard polls login history while open so new logins appear without manual refresh.
+- Admin storage status displays the active `DATA_DIR` and whether the environment variable is configured. This does not prove a Render disk is attached: Render must mount a persistent disk at that exact path. Without that, access codes, bans, preferences, game progress, and ideas can be lost when the instance is replaced.
+- Public installer: `/install`, linking to the signed latest CRX at `https://github.com/Dk7612/Superstar/releases/latest/download/Superstar.crx`. Signed CRX installations can use the existing update XML; an unpacked Developer Mode installation must be replaced once by the signed package to enter the auto-update channel.
+- Extension version is 1.2.4. Keep the existing persistent CRX signing key.
+
+
+## Ban enforcement and admin live login monitor
+
+- Every account/admin API request validates the session's originating device and IP against the current ban lists. A new ban also removes matching live sessions immediately; legacy sessions use the account's latest login-history record as a migration fallback.
+- The dashboard checks its active session every five seconds so a newly banned user is redirected out instead of remaining on a stale authenticated page. Extension content scripts re-check Extension permission periodically, and toolbar popup opens always validate against the server.
+- The admin login-history panel refreshes every four seconds while the tab is visible and displays how many new logins were detected since the previous poll.
+- The ban confirmation result reports how many active sessions were revoked.
+
+
+## Quick-reply preference behavior
+
+- The saved Quick replies preference is passed to the conversational AI endpoint. When enabled, Superstar AI is instructed to keep responses brief and direct; when disabled, it can provide fuller explanations.
+- The extension's mini-window mode and Quick replies preference are synchronized to the account and retained in local extension storage.
+
+
+## Client-side ban session refresh
+
+- The main dashboard and Games page periodically validate the signed-in session against the server. If a device/IP ban revokes the session, the affected page redirects to the login screen within approximately five seconds.
+- The dashboard waits for the extension's session-token handoff response before requesting synced extension preferences, avoiding a race on first login.
+
+
+- The optional Gimkit/Blooket helper sends the account's Quick replies preference with each suggestion request; the backend uses it to choose concise or fuller explanations. The helper only suggests an answer and does not click or submit quiz answers.

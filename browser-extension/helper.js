@@ -27,10 +27,12 @@
     status.textContent = "Thinking…";
     result.hidden = true;
     try {
+      const stored = await new Promise(resolve => chrome.storage.local.get(["superstarSessionToken"], resolve));
+      const sessionToken = stored.superstarSessionToken || "";
       const response = await fetch(API_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, choices }),
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + sessionToken },
+        body: JSON.stringify({ question, choices, quickReply: stored.quickReply !== false }),
         signal: AbortSignal.timeout(25000)
       });
       const data = await response.json().catch(() => ({}));

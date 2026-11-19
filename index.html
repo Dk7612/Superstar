@@ -34,6 +34,9 @@
     input, select { background:#0b1228; color:#f3f5ff; border:1px solid #46557c; border-radius:6px; padding:9px; }
     .table-wrap { overflow-x:auto; }
     .user-name-input { width:min(190px, 100%); margin:4px; }
+    .permission-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin:12px 0; }
+    .permission-grid label { display:flex; align-items:center; gap:8px; padding:8px; background:rgba(8,13,32,.3); border:1px solid rgba(190,205,255,.15); border-radius:7px; }
+    .permission-grid input { accent-color:#7188ef; }
     table { border-collapse:collapse; width:100%; min-width:700px; background:rgba(8,13,32,.35); }
     th, td { padding:8px; border-bottom:1px solid rgba(190,205,255,.18); text-align:left; }
     .notice { color:#b7c1df; }
@@ -126,8 +129,10 @@
   </div>
 </nav>
 
+<div id="permissionDeniedScreen" hidden style="position:fixed;inset:0;z-index:99999;background:#080f22;color:#f4f6ff;display:grid;place-items:center;text-align:center;padding:24px"><div><h1>Access restricted</h1><p>This access code does not have permission to use the Superstar dashboard.</p></div></div>
 <div class="container">
   <h1>Dashboard</h1>
+  <p class="notice"><a href="/install">Install the Superstar browser extension</a></p>
   <div class="card" id="loginCard">
     <h2>Login</h2>
     <form id="loginForm">
@@ -151,6 +156,7 @@
         <option value="ai-helper">AI Helper</option>
         <option value="full-site">Full Superstar Website</option>
       </select>
+      <label class="preference-toggle"><input id="quickReplyPreference" type="checkbox" checked> Quick replies (shorter AI responses)</label>
       <button id="saveMiniWindowMode" type="button">Save preference</button>
       <button id="openMiniWindow" class="generate" type="button">Open Superstar Mini Window</button>
     </div>
@@ -160,6 +166,7 @@
 
   <div class="card" id="adminPanel" style="display:none">
     <h2>Code Generator</h2>
+    <p id="storageStatus" class="notice" role="status">Checking saved-data storage configuration…</p>
     <form id="generateCodeForm">
       <input id="customCodeInput" type="text" minlength="4" maxlength="32" pattern="[A-Za-z0-9_-]{4,32}"
         placeholder="Custom code (optional)" aria-label="Custom guest code">
@@ -168,12 +175,24 @@
     <p class="notice">Leave the field blank for a random code. Custom codes use 4-32 letters, numbers, hyphens, or underscores.</p>
     <div id="newCode"></div>
 
+    <h2>Default guest permissions</h2>
+    <p class="notice">These apply to newly generated guest codes only. Existing codes keep their individual settings.</p>
+    <div id="defaultGuestPermissions" class="permission-grid">
+      <label><input type="checkbox" data-default-permission="dashboard" checked> Dashboard</label>
+      <label><input type="checkbox" data-default-permission="games" checked> Games</label>
+      <label><input type="checkbox" data-default-permission="extension" checked> Extension</label>
+      <label><input type="checkbox" data-default-permission="ai" checked> AI Assistant</label>
+      <label><input type="checkbox" data-default-permission="ideas" checked> Feature Ideas</label>
+    </div>
+    <button id="saveDefaultPermissions" type="button">Save default permissions</button>
+    <p class="notice" id="defaultPermissionsStatus" role="status"></p>
     <h2>User List</h2>
     <ul id="userList"></ul>
   </div>
 
   <div class="card" id="loginPanel" style="display:none">
     <h2>Login history (latest 500)</h2>
+    <p id="loginActivityStatus" class="notice" role="status" aria-live="polite">Live login monitoring is active while this dashboard is open.</p>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Time</th><th>Code</th><th>Role</th><th>IP address</th><th>Device ID</th><th>Actions</th></tr></thead>
@@ -183,6 +202,7 @@
   </div>
 
   <div class="card" id="bansPanel" style="display:none">
+    <p id="banStatus" class="notice" role="status"></p>
     <h2>Banned IP addresses</h2>
     <ul id="bannedIps"></ul>
     <h2>Banned devices</h2>
@@ -197,6 +217,20 @@
     <a href="/ideas"><button type="button">Suggest an Idea</button></a>
   </footer>
 </div>
+
+<dialog id="permissionsDialog" aria-labelledby="permissionsDialogTitle">
+  <h2 id="permissionsDialogTitle">Guest access permissions</h2>
+  <p class="notice" id="permissionsDialogCode"></p>
+  <div class="permission-grid" id="userPermissionOptions">
+    <label><input type="checkbox" data-user-permission="dashboard" checked> Dashboard</label>
+    <label><input type="checkbox" data-user-permission="games" checked> Games</label>
+    <label><input type="checkbox" data-user-permission="extension" checked> Extension</label>
+    <label><input type="checkbox" data-user-permission="ai" checked> AI Assistant</label>
+    <label><input type="checkbox" data-user-permission="ideas" checked> Feature Ideas</label>
+  </div>
+  <p class="notice" id="userPermissionsStatus" role="status"></p>
+  <div class="dialog-actions"><button id="cancelPermissions" type="button">Cancel</button><button id="saveUserPermissions" class="generate" type="button">Save permissions</button></div>
+</dialog>
 
 <dialog id="banDialog" aria-labelledby="banDialogTitle">
   <h2 id="banDialogTitle">Confirm ban</h2>
@@ -222,6 +256,8 @@ let role = "";
 let adminToken = "";
 let pendingBan = null;
 let adminRecovery = null;
+let newestLoginSeenKey = null;
+let adminLoginPoll = null;
 
 function adminHeaders(json = false) {
   const headers = { "Authorization": `Bearer ${adminToken}` };
@@ -378,16 +414,62 @@ document.getElementById("generateCodeForm").addEventListener("submit", event => 
   generateCode();
 });
 
+let accountSessionHeartbeat = null;
+function startAccountSessionHeartbeat(sessionToken) {
+  if (accountSessionHeartbeat) clearInterval(accountSessionHeartbeat);
+  accountSessionHeartbeat = setInterval(async () => {
+    try {
+      const response = await fetch("/account/permissions", {
+        headers: { "Authorization": "Bearer " + sessionToken }, cache: "no-store"
+      });
+      if (response.status === 401 || response.status === 403) {
+        sessionStorage.removeItem("superstar-session");
+        sessionStorage.removeItem("superstar-authenticated");
+        sessionStorage.setItem("superstar-session-expired", "1");
+        window.location.reload();
+      }
+    } catch { /* Retry on the next heartbeat if the network is temporarily unavailable. */ }
+  }, 5000);
+}
+
 function showAuthenticatedDashboard(session, remembered = false) {
   role = session.role;
+  startAccountSessionHeartbeat(session.sessionToken);
   adminToken = session.adminToken || "";
+  window.postMessage({ source: "superstar-site", type: "SET_SESSION", sessionToken: session.sessionToken }, window.location.origin);
+  fetch("/account/permissions", { headers: { "Authorization": "Bearer " + session.sessionToken }, cache: "no-store" })
+    .then(response => response.ok ? response.json() : Promise.reject(new Error("Permission check failed")))
+    .then(permissions => {
+      if (role === "guest" && permissions.dashboard === false) {
+        document.getElementById("permissionDeniedScreen").hidden = false;
+        document.querySelector(".container").style.display = "none";
+      } else {
+        const gamesLink = document.querySelector('a[href="/games"]');
+        if (gamesLink) gamesLink.hidden = permissions.games === false;
+        const extensionSettings = document.getElementById("miniWindowSettings");
+        if (extensionSettings) extensionSettings.hidden = permissions.extension === false;
+        const ideasLink = document.querySelector('a[href="/ideas"]');
+        if (ideasLink) ideasLink.hidden = permissions.ideas === false;
+      }
+    })
+    .catch(() => {
+      if (role === "guest") {
+        document.getElementById("permissionDeniedScreen").hidden = false;
+        document.querySelector(".container").style.display = "none";
+      }
+    });
   document.getElementById("siteIcon").href = "/favicon.png?v=2";
   document.body.classList.remove("logged-out");
   document.body.classList.add("authenticated");
   document.getElementById("loginCard").style.display = "none";
   document.getElementById("welcomePanel").style.display = "block";
   document.getElementById("miniWindowSettings").style.display = "block";
-  syncMiniWindowSettings();
+  miniWindowStatus.textContent = "Checking for the Superstar browser extension…";
+  setTimeout(() => {
+    if (miniWindowStatus.textContent === "Checking for the Superstar browser extension…") {
+      miniWindowStatus.textContent = "Extension not detected. Install the extension and reload this page.";
+    }
+  }, 1800);
   document.getElementById("welcomeMessage").textContent = remembered
     ? "Signed in as admin on this remembered device. Enjoy the stars."
     : `Signed in as ${role}. Enjoy the stars.`;
@@ -448,7 +530,26 @@ function showAdminPanel() {
   document.getElementById("loginPanel").style.display="block";
   document.getElementById("bansPanel").style.display="block";
   document.getElementById("ideasAdminPanel").style.display = "block";
-  Promise.all([loadUsers(), loadLogins(), loadBans(), loadIdeas()]);
+  Promise.all([loadUsers(), loadDefaultPermissions(), loadLogins(), loadBans(), loadIdeas(), loadStorageStatus()]);
+  startAdminLoginPolling();
+}
+function startAdminLoginPolling() {
+  if (adminLoginPoll) clearInterval(adminLoginPoll);
+  adminLoginPoll = setInterval(() => {
+    if (role === "admin" && document.visibilityState === "visible") loadLogins(true);
+  }, 4000);
+}
+async function loadStorageStatus() {
+  const element = document.getElementById("storageStatus");
+  try {
+    const response = await adminFetch("/admin/storage-status", { headers: adminHeaders() });
+    if (!response.ok) throw new Error("Could not read storage status.");
+    const data = await response.json();
+    element.textContent = data.dataDirectoryEnvironmentConfigured
+      ? "DATA_DIR is set to " + data.dataDirectory + ". Confirm that your Render persistent disk is mounted at this exact path before redeploying."
+      : "WARNING: DATA_DIR is not set. The default data folder may be temporary, so access codes, bans, and game progress could be lost on redeploy. Configure a Render persistent disk before redeploying.";
+    element.style.color = data.dataDirectoryEnvironmentConfigured ? "" : "#ff9b78";
+  } catch (error) { element.textContent = error.message || "Could not check storage configuration."; }
 }
 
 async function generateCode() {
@@ -463,6 +564,35 @@ async function generateCode() {
   document.getElementById("customCodeInput").value = "";
   loadUsers();
 }
+
+let editingPermissionCode = null;
+const permissionNames = ["dashboard", "games", "extension", "ai", "ideas"];
+async function loadDefaultPermissions() {
+  const response = await adminFetch("/admin/permissions", { headers: adminHeaders() });
+  if (!response.ok) return;
+  const data = await response.json();
+  for (const key of permissionNames) document.querySelector('[data-default-permission="' + key + '"]').checked = data.defaults[key] !== false;
+}
+document.getElementById("saveDefaultPermissions").addEventListener("click", async () => {
+  const permissions = Object.fromEntries(permissionNames.map(key => [key, document.querySelector('[data-default-permission="' + key + '"]').checked]));
+  const response = await adminFetch("/admin/permissions/defaults", { method:"PUT", headers:adminHeaders(true), body:JSON.stringify({permissions}) });
+  document.getElementById("defaultPermissionsStatus").textContent = response.ok ? "Defaults saved. Existing guest codes were not changed." : ((await response.json()).error || "Could not save defaults.");
+});
+function openUserPermissions(user) {
+  editingPermissionCode = user.code;
+  document.getElementById("permissionsDialogCode").textContent = "Access code: " + user.code;
+  for (const key of permissionNames) document.querySelector('[data-user-permission="' + key + '"]').checked = user.permissions?.[key] !== false;
+  document.getElementById("userPermissionsStatus").textContent = "";
+  document.getElementById("permissionsDialog").showModal();
+}
+document.getElementById("cancelPermissions").addEventListener("click", () => document.getElementById("permissionsDialog").close());
+document.getElementById("saveUserPermissions").addEventListener("click", async () => {
+  if (!editingPermissionCode) return;
+  const permissions = Object.fromEntries(permissionNames.map(key => [key, document.querySelector('[data-user-permission="' + key + '"]').checked]));
+  const response = await adminFetch("/admin/user-permissions", { method:"PUT", headers:adminHeaders(true), body:JSON.stringify({code:editingPermissionCode,permissions}) });
+  if (!response.ok) { document.getElementById("userPermissionsStatus").textContent = (await response.json()).error || "Could not save permissions."; return; }
+  document.getElementById("permissionsDialog").close(); editingPermissionCode = null; loadUsers();
+});
 
 async function loadUsers() {
   const res = await adminFetch("/admin/users", { headers:adminHeaders()});
@@ -484,6 +614,10 @@ async function loadUsers() {
       revealButton.textContent = isHidden ? "Hide code" : "Show code";
     });
     li.append(codeLabel, " ", revealButton, ` - ${user.role} - ${user.lockedDevice||"not locked"} `);
+    const permissionsButton = document.createElement("button");
+    permissionsButton.type = "button"; permissionsButton.textContent = "Permissions";
+    permissionsButton.addEventListener("click", () => openUserPermissions(user));
+    li.appendChild(permissionsButton);
     const button = document.createElement("button");
     button.className = "reset";
     button.textContent = "Reset Device";
@@ -523,10 +657,24 @@ async function resetDevice(code) {
   loadUsers();
 }
 
-async function loadLogins() {
+async function loadLogins(silent = false) {
   const res = await adminFetch("/admin/logins", { headers:adminHeaders()});
-  if (!res.ok) return alert("Could not load login history.");
+  if (!res.ok) { if (!silent) alert("Could not load login history."); return; }
   const logins = await res.json();
+  const latest = logins[0];
+  const latestKey = latest ? [latest.time, latest.code, latest.deviceID].join("|") : "";
+  const activity = document.getElementById("loginActivityStatus");
+  if (newestLoginSeenKey === null) {
+    newestLoginSeenKey = latestKey;
+    activity.textContent = "Live login monitoring is active. Waiting for new logins…";
+  } else if (latestKey && latestKey !== newestLoginSeenKey) {
+    const oldIndex = logins.findIndex(entry => [entry.time, entry.code, entry.deviceID].join("|") === newestLoginSeenKey);
+    const count = oldIndex < 0 ? logins.length : oldIndex;
+    activity.textContent = count + " new login" + (count === 1 ? "" : "s") + " detected just now.";
+    newestLoginSeenKey = latestKey;
+  } else if (!silent) {
+    activity.textContent = "Live login monitoring is active. No new logins.";
+  }
   const list = document.getElementById("loginList");
   list.replaceChildren();
   for (const login of logins) {
@@ -590,7 +738,10 @@ document.getElementById("confirmBan").addEventListener("click", async () => {
     method:"POST", headers:adminHeaders(true), body:JSON.stringify(banRequest)
   });
   if (!res.ok) return alert((await res.json()).error || "Could not apply ban.");
+  const result = await res.json();
+  document.getElementById("banStatus").textContent = "Ban saved. " + (result.revokedSessions || 0) + " active session(s) revoked.";
   loadBans();
+  loadLogins(true);
 });
 
 async function unban(type, value) {
@@ -654,12 +805,13 @@ const miniWindowModeSelect = document.getElementById("miniWindowMode");
 const miniWindowStatus = document.getElementById("miniWindowStatus");
 let miniWindowExtensionAvailable = false;
 
-function sendMiniWindowMessage(type, mode) {
+function sendMiniWindowMessage(type, mode, enabled) {
   const requestId = crypto.randomUUID();
   window.postMessage({
     source: "superstar-site",
     type,
     mode,
+    enabled,
     requestId
   }, window.location.origin);
 }
@@ -678,10 +830,18 @@ window.addEventListener("message", event => {
     miniWindowExtensionAvailable = message.ok === true;
     if (message.ok && ["ai-helper", "full-site"].includes(message.mode)) {
       miniWindowModeSelect.value = message.mode;
-      miniWindowStatus.textContent = "Extension connected. Your preference is saved in the browser extension.";
+      document.getElementById("quickReplyPreference").checked = message.quickReply !== false;
+      miniWindowStatus.textContent = "Extension connected. Preferences sync to this account and are saved in the extension.";
     } else {
-      miniWindowStatus.textContent = "Extension not detected. Install the Superstar Mini Window extension in Opera GX, then reload this page.";
+      miniWindowStatus.textContent = "Extension not detected or permission denied. Install it and make sure this access code has Extension permission.";
     }
+  } else if (message.type === "SET_QUICK_REPLY_RESULT") {
+    miniWindowStatus.textContent = message.ok
+      ? "Quick-reply preference saved to this account and extension."
+      : "Could not save preference. Check that the extension is connected and Extension permission is enabled.";
+  } else if (message.type === "SET_SESSION_RESULT") {
+    if (message.ok) syncMiniWindowSettings();
+    else miniWindowStatus.textContent = "Extension not detected or the account does not have Extension permission.";
   } else if (message.type === "OPEN_MINI_WINDOW_RESULT") {
     miniWindowStatus.textContent = message.ok
       ? "Opening your Superstar mini-window…"
@@ -695,6 +855,15 @@ document.getElementById("saveMiniWindowMode").addEventListener("click", () => {
     return;
   }
   sendMiniWindowMessage("SET_MINI_MODE", miniWindowModeSelect.value);
+});
+
+document.getElementById("quickReplyPreference").addEventListener("change", event => {
+  if (!miniWindowExtensionAvailable) {
+    event.target.checked = !event.target.checked;
+    miniWindowStatus.textContent = "Install the extension and enable Extension permission before saving preferences.";
+    return;
+  }
+  sendMiniWindowMessage("SET_QUICK_REPLY", null, event.target.checked);
 });
 
 document.getElementById("openMiniWindow").addEventListener("click", () => {

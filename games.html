@@ -101,7 +101,23 @@
       const session = JSON.parse(sessionStorage.getItem("superstar-session"));
       if (sessionStorage.getItem("superstar-authenticated") !== "1" ||
           !session || !["admin", "guest"].includes(session.role) ||
-          typeof session.sessionToken !== "string") window.location.replace("/");
+          typeof session.sessionToken !== "string") throw new Error("Sign in required");
+      document.documentElement.style.visibility = "hidden";
+      fetch("/account/permissions", { headers: { "Authorization": "Bearer " + session.sessionToken }, cache: "no-store" })
+        .then(response => response.ok ? response.json() : Promise.reject(new Error("Permission check failed")))
+        .then(permissions => {
+          if (permissions.games !== true) { window.location.replace("/"); return; }
+          document.documentElement.style.visibility = "visible";
+          setInterval(async () => {
+            try {
+              const check = await fetch("/account/permissions", {
+                headers: { "Authorization": "Bearer " + session.sessionToken }, cache: "no-store"
+              });
+              if (!check.ok) window.location.replace("/");
+            } catch { /* Retry next heartbeat if temporarily offline. */ }
+          }, 5000);
+        })
+        .catch(() => window.location.replace("/"));
     } catch {
       window.location.replace("/");
     }

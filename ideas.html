@@ -12,7 +12,23 @@ h1{margin:0 0 10px;font-size:clamp(26px,5vw,36px)}p{color:#b8c5e8;line-height:1.
 label{display:block;margin:22px 0 8px;font-weight:700}input,textarea{width:100%;padding:13px;border:1px solid #465780;border-radius:9px;background:#080f22;color:#fff;font:inherit}
 textarea{min-height:150px;resize:vertical;line-height:1.5}button{margin-top:18px;padding:12px 19px;border:0;border-radius:9px;background:#586fe0;color:white;font-weight:700;font-size:15px;cursor:pointer}
 button:disabled{opacity:.6;cursor:wait}#status{min-height:24px;margin-top:14px}footer{padding:20px 0 28px;text-align:center}footer a{color:#b8c5e8}
-</style></head><body>
+</style>
+<script>
+try {
+  const session = JSON.parse(sessionStorage.getItem("superstar-session"));
+  if (sessionStorage.getItem("superstar-authenticated") === "1" && session &&
+      session.role === "guest" && typeof session.sessionToken === "string") {
+    document.documentElement.style.visibility = "hidden";
+    fetch("/account/permissions", { headers: { "Authorization": "Bearer " + session.sessionToken }, cache: "no-store" })
+      .then(response => response.ok ? response.json() : Promise.reject(new Error("Permission check failed")))
+      .then(permissions => {
+        if (permissions.ideas !== true) { window.location.replace("/"); return; }
+        document.documentElement.style.visibility = "visible";
+      })
+      .catch(() => window.location.replace("/"));
+  }
+} catch { /* Public, unauthenticated idea submissions remain available. */ }
+</script></head><body>
 <header><a href="/"><img src="/favicon.png" alt="">Superstar</a></header>
 <main><section class="card"><h1>Share an idea</h1>
 <p>Have an idea for Superstar? Suggest a new feature, a game, or a way to improve the site. Gemini will organize your suggestion before it reaches the private admin inbox.</p>

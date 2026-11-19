@@ -4,8 +4,33 @@
 
   const host = document.createElement("div");
   host.id = "superstar-global-player-host";
-  host.style.cssText = "all:initial;position:fixed;z-index:2147483647;left:16px;bottom:16px;";
+  host.style.cssText = "all:initial;position:fixed;z-index:2147483647;left:16px;bottom:16px;display:none;";
   (document.documentElement || document.body).appendChild(host);
+  async function checkExtensionAccess() {
+    try {
+      const stored = await new Promise(resolve => chrome.storage.local.get(["superstarSessionToken"], resolve));
+      const token = stored.superstarSessionToken || "";
+      if (!token) { host.style.display = "none"; return; }
+      const response = await fetch("https://superstar-oa7t.onrender.com/account/permissions", {
+        headers: { "Authorization": "Bearer " + token },
+        cache: "no-store"
+      });
+      if (!response.ok) { host.style.display = "none"; return; }
+      const permissions = await response.json();
+      host.style.display = permissions.extension === true ? "block" : "none";
+      const aiOption = root?.querySelector?.('[data-view="ai"]');
+      const gamesOption = root?.querySelector?.('[data-view="games"]');
+      const websiteOption = root?.querySelector?.('[data-view="website"]');
+      if (aiOption) aiOption.hidden = permissions.ai !== true;
+      if (gamesOption) gamesOption.hidden = permissions.games !== true;
+      if (websiteOption) websiteOption.hidden = permissions.dashboard !== true;
+    } catch { host.style.display = "none"; }
+  }
+  checkExtensionAccess();
+  setInterval(checkExtensionAccess, 30000);
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.superstarSessionToken) checkExtensionAccess();
+  });
   const root = host.attachShadow({ mode: "closed" });
 
   const style = document.createElement("style");
@@ -62,8 +87,8 @@
   const alpha = document.createElementNS("http://www.w3.org/2000/svg", "feComponentTransfer");
   const alphaFunc = document.createElementNS("http://www.w3.org/2000/svg", "feFuncA");
   alphaFunc.setAttribute("type", "linear");
-  alphaFunc.setAttribute("slope", "4");
-  alphaFunc.setAttribute("intercept", "-0.15");
+  alphaFunc.setAttribute("slope", "1.8");
+  alphaFunc.setAttribute("intercept", "-0.01");
   alpha.appendChild(alphaFunc);
   filter.append(matrix, alpha);
   defs.appendChild(filter);
@@ -160,9 +185,12 @@
       waiting = true; send.disabled = true; status.textContent = "Thinking…";
       const pending = element("div","bubble assistant","Thinking…"); messages.appendChild(pending); messages.scrollTop = messages.scrollHeight;
       try {
+        const stored = await new Promise(resolve => chrome.storage.local.get(["superstarSessionToken"], resolve));
+        const sessionToken = stored.superstarSessionToken || "";
+        const prefs = await chrome.storage.local.get("quickReply");
         const response = await fetch("https://superstar-oa7t.onrender.com/api/ai/chat", {
-          method:"POST", headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({messages:history.slice(-12)}), signal:AbortSignal.timeout(35000)
+          method:"POST", headers:{"Content-Type":"application/json", "Authorization":"Bearer " + sessionToken},
+          body:JSON.stringify({messages:history.slice(-12), quickReply:prefs.quickReply !== false}), signal:AbortSignal.timeout(35000)
         });
         const data = await response.json().catch(()=>({}));
         if (!response.ok) throw new Error(data.error || "AI request failed.");
@@ -226,12 +254,9 @@
   }
   function formatTime(s){return Math.floor(s/60).toString().padStart(2,"0")+":"+Math.floor(s%60).toString().padStart(2,"0");}
 
-  launcher.addEventListener("pointerenter", e => {
-    if (e.pointerType === "mouse" && !open) showMenu();
-  });
-  launcher.addEventListener("click",()=>{
-    if (activeView === "focus") hideMenu();
-    else if (!open) showMenu();
+  launcher.addEventListener("click", () => {
+    if (open) hideMenu();
+    else showMenu();
   });
   // Keep the menu open while the pointer moves away; dismiss only on an outside click.
   document.addEventListener("click", e => {
