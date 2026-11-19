@@ -8,7 +8,7 @@ const cors = require("cors");
 const app = express();
 app.set("trust proxy", 1);
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "3mb" }));
 app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "index.html")));
 app.get("/games", (_req, res) => res.sendFile(path.join(__dirname, "games.html")));
 app.get("/starfield.js", (_req, res) => res.sendFile(path.join(__dirname, "starfield.js")));
@@ -990,9 +990,15 @@ app.post("/api/ai/answer", requireFeaturePermission("ai"), async (req, res) => {
   const choices = Array.isArray(body.choices)
     ? body.choices.filter(choice => typeof choice === "string").map(choice => choice.trim()).filter(Boolean).slice(0, 8)
     : [];
+  const screenshotDataUrl = typeof body.screenshotDataUrl === "string" ? body.screenshotDataUrl : "";
+  const screenshotMatch = screenshotDataUrl.match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
+  const hasScreenshot = !!screenshotMatch && screenshotDataUrl.length <= 2400000;
 
-  if (!question || question.length > 1200 || choices.length < 2 || choices.some(choice => choice.length > 200)) {
-    return res.status(400).json({ error: "Send a question (up to 1200 characters) and 2-8 answer choices (up to 200 characters each)." });
+  if ((!hasScreenshot && (!question || choices.length < 2)) || question.length > 1200 || choices.some(choice => choice.length > 200)) {
+    return res.status(400).json({ error: "Capture a screenshot of the question or provide a question and at least two answer choices. Screenshots must be JPEG, PNG, or WebP and under 1.8 MB." });
+  }
+  if (screenshotDataUrl && !hasScreenshot) {
+    return res.status(400).json({ error: "The screenshot is invalid or too large. Capture it again." });
   }
 
   const now = Date.now();
@@ -1015,23 +1021,24 @@ app.post("/api/ai/answer", requireFeaturePermission("ai"), async (req, res) => {
 
   const quickReply = body.quickReply !== false;
   const prompt = [
-    "You help a student understand and answer a multiple-choice question.",
-    "Use the question and choices only. Do not assume access to a game's answer key.",
-    "Choose the best matching choice exactly as written. If the information is insufficient, set answer to an empty string and explain uncertainty.",
+    "You help a student understand a multiple-choice question shown in a screenshot.",
+    hasScreenshot ? "Read ONLY the main question and its answer choices visible in the screenshot. Ignore unrelated page text, navigation, chat, menus, scores, and other UI. Do not use the rest of the page." : "Use only the supplied question and choices.",
+    "If question text or choices are also supplied, use them to clarify the screenshot.",
+    "Choose the best matching answer exactly as displayed. If the question or choices cannot be read, set answer to an empty string and explain what is unclear.",
     quickReply ? "Keep the explanation to one brief sentence." : "Give a fuller explanation that teaches the reasoning.",
     "Return JSON with exactly these fields: answer (string), explanation (string), confidence (number from 0 to 1).",
     "",
-    "Question: " + question,
-    "Choices:",
-    ...choices.map((choice, index) => (index + 1) + ". " + choice)
-  ].join("\n");
+    question ? "Question text: " + question : "",
+    choices.length ? "Answer choices:\n" + choices.map((choice, index) => (index + 1) + ". " + choice).join("\n") : "",
+    hasScreenshot ? "Inspect the attached screenshot and identify the single question and its choices." : ""
+  ].filter(Boolean).join("\n");
 
   try {
     const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + encodeURIComponent(geminiApiKey), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
+        contents: [{ parts: [{ text: prompt }, ...(hasScreenshot ? [{ inline_data: { mime_type: "image/" + screenshotMatch[1], data: screenshotMatch[2] } }] : [])] }],
         generationConfig: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -1078,7 +1085,7 @@ app.post("/api/ai/answer", requireFeaturePermission("ai"), async (req, res) => {
       if (Number.isInteger(index) && index >= 0 && index < choices.length) matchedChoice = choices[index];
     }
     res.json({
-      answer: matchedChoice || "",
+      answer: matchedChoice || (hasScreenshot && answer ? answer.slice(0, 200) : ""),
       explanation: typeof result.explanation === "string" ? result.explanation.slice(0, 500) : "",
       confidence: Number.isFinite(result.confidence) ? Math.max(0, Math.min(1, result.confidence)) : 0
     });
