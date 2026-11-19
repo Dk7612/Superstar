@@ -27,7 +27,7 @@
     status.textContent = "Thinking…";
     result.hidden = true;
     try {
-      const stored = await new Promise(resolve => chrome.storage.local.get(["superstarSessionToken"], resolve));
+      const stored = await new Promise(resolve => chrome.storage.local.get(["superstarSessionToken", "quickReply"], resolve));
       const sessionToken = stored.superstarSessionToken || "";
       const response = await fetch(API_URL, {
         method: "POST",

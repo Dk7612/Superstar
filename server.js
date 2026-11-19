@@ -10,7 +10,10 @@ app.set("trust proxy", 1);
 app.use(cors());
 app.use(express.json({ limit: "3mb" }));
 app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "index.html")));
+app.get("/admin", (_req, res) => res.sendFile(path.join(__dirname, "index.html")));
+app.get("/settings", (_req, res) => res.sendFile(path.join(__dirname, "settings.html")));
 app.get("/games", (_req, res) => res.sendFile(path.join(__dirname, "games.html")));
+app.get("/ai", (_req, res) => res.sendFile(path.join(__dirname, "ai.html")));
 app.get("/starfield.js", (_req, res) => res.sendFile(path.join(__dirname, "starfield.js")));
 app.get("/dropper.js", (_req, res) => res.sendFile(path.join(__dirname, "dropper.js")));
 app.get("/physics3d.js", (_req, res) => res.sendFile(path.join(__dirname, "physics3d.js")));
@@ -948,9 +951,7 @@ app.post("/api/ai/chat", requireFeaturePermission("ai"), async (req, res) => {
   }
 
   try {
-    const quickReply = req.body?.quickReply !== false;
-    const chatInstruction = "You are Superstar AI, a friendly, capable general-purpose assistant. Answer naturally and conversationally, explain things clearly, ask a follow-up when needed, and be honest when uncertain. Do not assume you can see the user's webpage or files; only use information they provide in chat." +
-      (quickReply ? " Keep replies brief and direct unless the user asks for detail." : " Give helpful explanations with enough detail to make the answer clear.");
+    const chatInstruction = "You are Superstar AI, a friendly, capable general-purpose assistant. Answer naturally and conversationally, explain things clearly, ask a follow-up when needed, and be honest when uncertain. Do not assume you can see the user's webpage or files; only use information they provide in chat. Do not unnecessarily shorten answers; provide the level of detail that best answers the user's request.";
     const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + encodeURIComponent(geminiApiKey), {
       method: "POST",
       headers: { "Content-Type": "application/json" },

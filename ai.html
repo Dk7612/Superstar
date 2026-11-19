@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Superstar AI</title>
+  <link rel="icon" href="/favicon.png?v=2">
+  <style>
+    :root{color-scheme:dark;font-family:Arial,sans-serif;background:#080d20;color:#f3f5ff}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% -15%,#273765 0,#101a35 42%,#080d20 80%)}
+    header{height:76px;padding:0 clamp(16px,4vw,48px);display:flex;align-items:center;gap:12px;border-bottom:1px solid #344368;background:#0b1228cc;backdrop-filter:blur(14px)}
+    header img{width:40px;height:40px;border-radius:10px;object-fit:cover}
+    .brand{font-size:19px;font-weight:800;letter-spacing:.2px}
+    .nav{margin-left:auto;display:flex;gap:10px}
+    a.navlink{color:#dce4ff;text-decoration:none;padding:10px 14px;border:1px solid #3b4b74;border-radius:9px}
+    a.navlink.active{background:#5269c8;border-color:#7186e5;color:white}
+    a.settings-icon{min-width:40px;text-align:center;font-size:19px;padding-inline:10px}
+    main{width:min(920px,calc(100% - 28px));margin:34px auto 24px}
+    .intro{margin:0 0 18px}.intro h1{font-size:clamp(26px,5vw,36px);margin:0 0 8px}.intro p{color:#aebbdc;margin:0;line-height:1.5}
+    .chat{height:min(66vh,680px);min-height:390px;display:flex;flex-direction:column;background:#111a34ef;border:1px solid #34466f;border-radius:18px;overflow:hidden;box-shadow:0 18px 55px #0006}
+    .chathead{padding:14px 18px;border-bottom:1px solid #2b3a60;display:flex;align-items:center;gap:10px}
+    .statusdot{width:9px;height:9px;border-radius:50%;background:#72d7a0;box-shadow:0 0 12px #72d7a0}
+    .chathead strong{font-size:14px}.chathead span{font-size:12px;color:#aebbdc}
+    #clear{margin-left:auto;background:transparent;color:#b9c7ed;border:1px solid #40517d;border-radius:8px;padding:7px 10px;cursor:pointer}
+    #messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px}
+    .message{max-width:min(80%,720px);padding:12px 15px;border-radius:14px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55}
+    .assistant{align-self:flex-start;background:#202d50;border:1px solid #34466f}
+    .user{align-self:flex-end;background:#5269c8;color:#fff}
+    .welcome{color:#c1cdea;font-size:13px;line-height:1.55;padding:4px 2px}
+    .composer{padding:14px;border-top:1px solid #2b3a60;background:#0d152d}
+    .composerrow{display:flex;gap:10px;align-items:flex-end}
+    textarea{flex:1;min-height:54px;max-height:150px;resize:vertical;background:#080f22;color:#fff;border:1px solid #455780;border-radius:11px;padding:13px;font:14px/1.45 Arial,sans-serif;outline:none}
+    textarea:focus{border-color:#8296f3;box-shadow:0 0 0 3px #637ce633}
+    #send{min-width:88px;height:48px;border:0;border-radius:10px;background:#596fe0;color:white;font-weight:700;cursor:pointer}
+    #send:disabled{opacity:.55;cursor:wait}
+    #status{min-height:17px;margin:8px 2px 0;color:#aebbdc;font-size:11px}
+    .foot{text-align:center;color:#8392b8;font-size:11px;margin:14px 0}
+    @media(max-width:560px){header{height:66px}.brand{font-size:17px}.nav{gap:6px}a.navlink{padding:8px 10px;font-size:12px}main{margin-top:22px}.chat{height:70vh;min-height:360px}.message{max-width:92%}#send{min-width:68px}}
+    :root[data-theme="light"]{color-scheme:light;background:#f3f6ff;color:#202945}
+    :root[data-theme="light"] body{background:linear-gradient(160deg,#f3f6ff,#e5ecfb 55%,#eee9ff)}
+    :root[data-theme="light"] header{background:#ffffffd9;border-color:#d6def0}
+    :root[data-theme="light"] a.navlink{color:#202945;border-color:#cbd5eb}
+    :root[data-theme="light"] a.navlink.active{background:#536bc3;color:#fff}
+    :root[data-theme="light"] .intro p,:root[data-theme="light"] .foot{color:#53617e}
+    :root[data-theme="light"] .chat{background:#fff;border-color:#d6def0;box-shadow:0 18px 55px #30406420}
+    :root[data-theme="light"] .chathead,:root[data-theme="light"] .composer{border-color:#d6def0;background:#f4f7ff}
+    :root[data-theme="light"] .assistant{background:#edf2ff;border-color:#d6def0;color:#202945}
+    :root[data-theme="light"] .welcome{color:#53617e}
+    :root[data-theme="light"] textarea{background:#fff;color:#202945;border-color:#b9c6e1}
+  </style>
+</head>
+<body>
+  <script>try{const saved=JSON.parse(localStorage.getItem("superstar-starfield-settings-v2")||"null");if(saved&&["dark","light"].includes(saved.theme))document.documentElement.dataset.theme=saved.theme;}catch{}</script>
+  <header>
+    <img src="/favicon.png?v=2" alt="">
+    <div class="brand">Superstar</div>
+    <nav class="nav" aria-label="Main navigation">
+      <a class="navlink" href="/">Dashboard</a>
+      <a class="navlink active" href="/ai" aria-current="page">AI</a>
+      <a class="navlink" href="/games">Games</a>
+      <a class="navlink settings-icon" href="/settings" aria-label="Settings" title="Settings">⚙</a>
+      <a class="navlink" href="/admin" id="adminNavLink" hidden>Admin</a>
+    </nav>
+  </header>
+  <main>
+    <section class="intro"><h1>Superstar AI</h1><p>Ask questions, brainstorm ideas, get explanations, or work through something step by step.</p></section>
+    <section class="chat" aria-label="AI conversation">
+      <div class="chathead"><span class="statusdot" aria-hidden="true"></span><strong>AI Assistant</strong><span>Ready to help</span><button id="clear" type="button">New chat</button></div>
+      <div id="messages" aria-live="polite"><div class="welcome">Hey! What would you like help with? I can explain concepts, help with writing, brainstorm, or answer general questions.</div></div>
+      <form class="composer" id="chatForm">
+        <div class="composerrow"><textarea id="prompt" maxlength="2500" placeholder="Message Superstar AI…" aria-label="Message Superstar AI"></textarea><button id="send" type="submit">Send</button></div>
+        <p id="status" role="status">Enter to send · Shift+Enter for a new line</p>
+      </form>
+    </section>
+    <p class="foot">AI responses can make mistakes. Check important information.</p>
+  </main>
+  <script>
+    (() => {
+      "use strict";
+      const messagesEl=document.getElementById("messages"), input=document.getElementById("prompt"), form=document.getElementById("chatForm"), send=document.getElementById("send"), status=document.getElementById("status"), clear=document.getElementById("clear");
+      let history=[], token="";
+      function addMessage(role,content){const bubble=document.createElement("div");bubble.className="message "+role;bubble.textContent=content;messagesEl.appendChild(bubble);messagesEl.scrollTop=messagesEl.scrollHeight;return bubble;}
+      function showError(message){status.textContent=message;}
+      async function initialize(){
+        try{const session=JSON.parse(sessionStorage.getItem("superstar-session")||"null");token=session&&session.sessionToken||"";if(session?.role==="admin")document.getElementById("adminNavLink").hidden=false;}catch{}
+        if(!token){status.textContent="Please sign in first. Redirecting to the dashboard…";setTimeout(()=>location.replace("/"),900);send.disabled=true;return;}
+        try{
+          const response=await fetch("/account/permissions",{headers:{Authorization:"Bearer "+token},cache:"no-store"});
+          if(!response.ok)throw new Error("Your session expired. Sign in again.");
+          const permissions=await response.json();
+          if(permissions.ai!==true){messagesEl.replaceChildren();addMessage("assistant","Your account does not have permission to use AI.");send.disabled=true;input.disabled=true;return;}
+          status.textContent="You're signed in. Ask me anything.";
+        }catch(error){showError(error.message||"Could not verify your account.");send.disabled=true;}
+      }
+      form.addEventListener("submit",async event=>{
+        event.preventDefault();const prompt=input.value.trim();if(!prompt||send.disabled)return;
+        if(prompt.length>2500){showError("Please keep messages under 2,500 characters.");return;}
+        history.push({role:"user",content:prompt});addMessage("user",prompt);input.value="";send.disabled=true;status.textContent="Superstar AI is thinking…";
+        try{
+          const response=await fetch("/api/ai/chat",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+token},body:JSON.stringify({messages:history.slice(-12)}),signal:AbortSignal.timeout(35000)});
+          const data=await response.json().catch(()=>({}));
+          if(!response.ok)throw new Error(data.error||"AI request failed.");
+          const reply=typeof data.reply==="string"&&data.reply.trim()?data.reply.trim():"The AI returned an empty response.";
+          history.push({role:"assistant",content:reply});addMessage("assistant",reply);status.textContent="Ready.";
+        }catch(error){history.pop();showError(error.name==="TimeoutError"?"That took too long. Try again.":error.message||"Could not reach Superstar AI.");}
+        finally{send.disabled=false;input.focus();}
+      });
+      input.addEventListener("keydown",event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();form.requestSubmit();}});
+      clear.addEventListener("click",()=>{history=[];messagesEl.replaceChildren();const welcome=document.createElement("div");welcome.className="welcome";welcome.textContent="New conversation. What would you like help with?";messagesEl.appendChild(welcome);status.textContent="Ready for a new chat.";input.focus();});
+      initialize();
+    })();
+  </script>
+</body>
+</html>

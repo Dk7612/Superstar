@@ -31,6 +31,7 @@
     canvas.width = Math.round(width * pixelRatio);
     canvas.height = Math.round(height * pixelRatio);
     context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    context.lineCap = "round";
     stars = Array.from({ length: Math.min(150, Math.ceil(width * height / 8500)) }, () => ({
       x: Math.random() * width,
       y: Math.random() * height,
@@ -56,6 +57,8 @@
     lastFrameTime = 0;
   }
 
+  let animationActive = false;
+
   function draw(timestamp = 0) {
     const [directionX, directionY] = directions[directionSelect.value] || directions.left;
     const speedMultiplier = speeds[speedSelect.value] || speeds.normal;
@@ -74,10 +77,7 @@
 
       const tailX = star.x - directionX * star.trail;
       const tailY = star.y - directionY * star.trail;
-      const gradient = context.createLinearGradient(tailX, tailY, star.x, star.y);
-      gradient.addColorStop(0, "rgba(205, 220, 255, 0)");
-      gradient.addColorStop(1, `rgba(235, 242, 255, ${star.opacity})`);
-      context.strokeStyle = gradient;
+      context.strokeStyle = `rgba(235, 242, 255, ${star.opacity * 0.72})`;
       context.lineWidth = star.size;
       context.beginPath();
       context.moveTo(tailX, tailY);
@@ -89,7 +89,27 @@
       context.fill();
     }
 
-    if (!reducedMotion.matches) window.requestAnimationFrame(draw);
+  }
+
+  function canAnimate() {
+    return !reducedMotion.matches && document.visibilityState === "visible" && canvas.getClientRects().length > 0;
+  }
+
+  function startAnimation() {
+    if (canAnimate() && !animationActive) {
+      animationActive = true;
+      lastFrameTime = 0;
+      window.requestAnimationFrame(animate);
+    }
+  }
+
+  function animate(timestamp) {
+    if (!canAnimate()) {
+      animationActive = false;
+      return;
+    }
+    draw(timestamp);
+    window.requestAnimationFrame(animate);
   }
 
   try {
@@ -105,21 +125,22 @@
   directionSelect.addEventListener("change", applySettings);
   speedSelect.addEventListener("change", applySettings);
   themeSelect.addEventListener("change", applySettings);
-  for (const select of [directionSelect, speedSelect, themeSelect]) {
-    select.addEventListener("change", () => {
-      select.closest(".star-settings").open = false;
-    });
-  }
   document.addEventListener("pointerdown", event => {
     const settings = document.querySelector(".star-settings[open]");
     if (settings && !settings.contains(event.target)) settings.open = false;
   });
-  window.addEventListener("resize", resize);
+  window.addEventListener("resize", resize, { passive: true });
+  document.addEventListener("visibilitychange", () => {
+    startAnimation();
+  });
   reducedMotion.addEventListener("change", () => {
     lastFrameTime = 0;
     draw();
+    startAnimation();
   });
+  const bodyObserver = new MutationObserver(startAnimation);
+  bodyObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
   applySettings();
   resize();
-  if (!reducedMotion.matches) window.requestAnimationFrame(draw);
+  startAnimation();
 })();
