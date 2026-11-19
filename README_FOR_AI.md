@@ -279,3 +279,9 @@ The following captures the known requests and decisions from the project history
 - The dashboard checks its active session every five seconds so a newly banned user is redirected out instead of remaining on a stale authenticated page. Extension content scripts re-check Extension permission periodically, and toolbar popup opens always validate against the server.
 - The admin login-history panel refreshes every four seconds while the tab is visible and displays how many new logins were detected since the previous poll.
 - The ban confirmation result reports how many active sessions were revoked.
+
+
+## Quick-reply preference behavior
+
+- The saved Quick replies preference is passed to the conversational AI endpoint. When enabled, Superstar AI is instructed to keep responses brief and direct; when disabled, it can provide fuller explanations.
+- The extension's mini-window mode and Quick replies preference are synchronized to the account and retained in local extension storage.
