@@ -12,7 +12,7 @@
   style.textContent = `
     *{box-sizing:border-box}
     :host{all:initial}
-    .shell{font:13px/1.45 Arial,sans-serif;color:#f4f6ff;width:min(310px,calc(100vw - 32px));position:relative}
+    .shell{font:13px/1.45 Arial,sans-serif;color:#f4f6ff;width:46px;position:relative}.shell.open{width:min(310px,calc(100vw - 32px))}
     .launcher{width:46px;height:46px;padding:0;border:0;border-radius:50%;background:transparent;box-shadow:none;display:grid;place-items:center;cursor:pointer;outline-offset:4px}
     .launcher img{width:100%;height:100%;object-fit:contain;display:block;background:transparent;filter:url(#superstar-remove-dark-background);pointer-events:none}
     .menu{position:absolute;left:0;bottom:54px;width:100%;padding:12px;border:1px solid #5365a5;border-radius:16px;background:rgba(13,20,42,.94);backdrop-filter:blur(16px);box-shadow:0 12px 36px #0008;display:flex;flex-direction:column;gap:8px}
@@ -129,14 +129,14 @@
     }, 1000);
   }
   function showMenu() {
-    open = true; menu.hidden = false; view.hidden = true;
+    open = true; shell.classList.add("open"); menu.hidden = false; view.hidden = true;
     launcher.setAttribute("aria-expanded", "true");
   }
   function hideMenu() {
     if (dismissTimer) clearTimeout(dismissTimer);
     dismissTimer = null;
     pointerInside = false;
-    open = false; menu.hidden = true; view.hidden = true;
+    open = false; shell.classList.remove("open"); menu.hidden = true; view.hidden = true;
     stopGame();
     launcher.setAttribute("aria-expanded", "false");
   }
