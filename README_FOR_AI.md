@@ -327,3 +327,11 @@ The following captures the known requests and decisions from the project history
 - The helper displays the suggested choice, explanation, and confidence. It never auto-clicks an answer, submits a response, changes game state, or interacts with other players.
 - The saved Quick replies preference is sent to the answer endpoint.
 - Verification: run `node --check browser-extension/global-player.js`, parse `browser-extension/manifest.json`, test the helper appears only on `gimkit.com` / `blooket.com`, test capture/edit/analyze with a signed-in account, test missing session and disabled AI permission, and confirm no answer is clicked or submitted.
+
+
+## Question helper reliability update — extension v1.2.7
+
+- The Gimkit/Blooket helper now displays the actual request failure in both its status line and result panel instead of replacing every failure with the unhelpful text "No suggestion yet". A diagnostic is also written to the extension console.
+- The server normalizes AI-returned choices before matching, tolerating harmless punctuation, whitespace, and leading option labels; it also maps standalone A-H or 1-8 labels to the corresponding supplied choice when unambiguous.
+- The helper remains opt-in and never clicks or submits a game answer.
+- Verification: run `node --check server.js`, `node --check browser-extension/global-player.js`, parse the manifest JSON, and manually test a successful request plus missing session, disabled AI permission, provider errors, and non-exact answer formatting.
