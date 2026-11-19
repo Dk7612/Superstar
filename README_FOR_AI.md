@@ -107,7 +107,8 @@ The following captures the known requests and decisions from the project history
 - `browser-extension/manifest.json`: extension metadata, storage permission, production-site host permission, and a content bridge limited to the exact production origin.
 - `browser-extension/service-worker.js`: stores the selected mini-window mode in `chrome.storage.local`, opens a separate popup window from the toolbar action, and handles allowlisted requests from the Superstar dashboard.
 - `browser-extension/content-bridge.js`: bridges only `GET_MINI_MODE`, `SET_MINI_MODE`, and `OPEN_MINI_WINDOW` messages from the exact production origin. It does not inspect Gimkit or other pages.
-- `browser-extension/helper.html` and `helper.js`: standalone manual AI helper. The user enters a question and 2–8 choices; the helper posts them to the existing `POST /api/ai/answer` endpoint and displays the suggested answer, explanation, and confidence estimate.
+- `browser-extension/global-player.js`: a discreet, bottom-left launcher using the existing Superstar favicon/logo. Clicking it expands a compact conversational AI chat panel; the panel keeps the current page-load conversation in memory and sends only user-entered chat messages to `POST /api/ai/chat`. It does not inspect page content or interact with host-page controls.
+- `browser-extension/helper.html` and `helper.js`: retained as a legacy standalone helper page for compatibility; the global on-page widget is the primary AI experience.
 - The AI helper does not read page content, inspect hidden answers, or click answers. The former `superstar-gimkit.user.js` userscript is retired and removed from the repository. Existing installed Tampermonkey copies are not remotely uninstalled; the user must remove/disable the old script manually after testing the extension.
 - Dashboard setting in `index.html`: authenticated users can choose **AI Helper** or **Full Superstar Website**, save the preference to extension storage, and open the selected popup. The extension toolbar icon uses the same saved preference.
 - The Full Superstar Website mode opens the production site in a separate browser popup window. It shares the normal browser profile's website storage/cookies, subject to the browser's usual same-origin rules.
@@ -148,3 +149,14 @@ The following captures the known requests and decisions from the project history
 - A currently unpacked Developer Mode installation is not automatically migrated by adding `update_url`; users must perform a one-time install of the signed package. Whether Opera GX on a particular Windows installation accepts externally hosted CRX auto-updates depends on its Chromium/Opera distribution policy. Verify the actual Opera installation path before promising unattended updates; a store install or managed-install policy may be required by the browser.
 - The extension's broad `<all_urls>` access remains intentional for the global overlay. The updater does not add page-reading or answer-clicking behavior.
 - Verification: parse the manifest, validate the workflow YAML, run the CRX build with a disposable test key in CI/local testing, inspect the generated XML for the exact version and stable CRX URL, and verify the CRX is signed with the persistent public key. Do not test with or replace the production signing key.
+
+
+## Conversational left-side AI launcher (v1.1.2)
+
+- Replaced the wide floating mini-player bar with a single circular launcher at the bottom-left, displaying the same `/favicon.png` Superstar logo used by the website.
+- Clicking the logo opens a compact chat panel above it; clicking the logo again or the close control collapses the panel. The widget stays on the left and is responsive on narrow screens.
+- Replaced the multiple-choice-only widget with a general conversational chat UI: free-form messages, Enter to send, Shift+Enter for a newline, user/assistant bubbles, and an in-memory conversation history for the current page load. There is intentionally no new-chat/reset button.
+- Added `POST /api/ai/chat`, using the existing server-side Gemini 2.5 Flash integration. It accepts up to 12 recent messages, validates roles and lengths, applies the existing 20-requests-per-IP-per-minute limit, and never exposes `GEMINI_API_KEY` to the extension.
+- The legacy `/api/ai/answer` endpoint and helper page remain available for compatibility; the global launcher now uses only the conversational endpoint.
+- Bumped the extension version to 1.1.2 so the signed-release workflow can publish the update. Keep the persistent extension signing key unchanged.
+- Verification: run `node --check server.js` and `node --check browser-extension/global-player.js`; validate `browser-extension/manifest.json`; exercise chat with multi-turn messages, empty input, rate limiting, provider errors, and mobile-width layout. Do not claim the live extension changed until the branch is merged and the extension release workflow succeeds.
