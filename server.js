@@ -34,6 +34,15 @@ const TRUSTED_ADMIN_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
 const SESSION_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
 const dataDirectory = process.env.DATA_DIR || path.join(__dirname, "data");
 const dataFile = path.join(dataDirectory, "service-data.json");
+const GUEST_SECTIONS = ["dashboard", "games", "extension", "ai", "ideas"];
+const DEFAULT_GUEST_ACCESS = Object.freeze({ dashboard: true, games: true, extension: true, ai: true, ideas: true });
+function normalizeGuestAccess(value, fallback = DEFAULT_GUEST_ACCESS) {
+  return Object.fromEntries(GUEST_SECTIONS.map(key => [key, typeof value?.[key] === "boolean" ? value[key] : fallback[key]]));
+}
+function requireGuestSection(section) {
+  return (req, res, next) => users[req.userCode]?.role !== "guest" || guestAccess[req.userCode]?.[section] !== false
+    ? next() : res.status(403).json({ error: "This section has been disabled for your guest account.", section });
+}
 
 function validateGameProgress(progress) {
   if (!progress || typeof progress !== "object" || Array.isArray(progress) ||
@@ -69,7 +78,9 @@ function loadPersistentState() {
         (saved.trustedAdminDevices !== undefined && !Array.isArray(saved.trustedAdminDevices)) ||
         (saved.authSessions !== undefined && !Array.isArray(saved.authSessions)) ||
         (saved.gameSaves !== undefined && (!saved.gameSaves || typeof saved.gameSaves !== "object" || Array.isArray(saved.gameSaves))) ||
-        (saved.accountNames !== undefined && (!saved.accountNames || typeof saved.accountNames !== "object" || Array.isArray(saved.accountNames)))) {
+        (saved.accountNames !== undefined && (!saved.accountNames || typeof saved.accountNames !== "object" || Array.isArray(saved.accountNames))) ||
+        (saved.guestAccess !== undefined && (!saved.guestAccess || typeof saved.guestAccess !== "object" || Array.isArray(saved.guestAccess))) ||
+        (saved.defaultGuestAccess !== undefined && (!saved.defaultGuestAccess || typeof saved.defaultGuestAccess !== "object" || Array.isArray(saved.defaultGuestAccess)))) {
       throw new Error("Stored service data has an invalid format");
     }
     const generatedUsers = Object.create(null);
@@ -157,12 +168,14 @@ function loadPersistentState() {
       lockedDevices,
       gameSaves,
       accountNames,
+      guestAccess: Object.fromEntries(Object.entries(saved.guestAccess || {}).map(([code, value]) => [code, normalizeGuestAccess(value)])),
+      defaultGuestAccess: normalizeGuestAccess(saved.defaultGuestAccess),
       trustedAdminDevices,
       authSessions
     };
   } catch (error) {
     if (error.code === "ENOENT") {
-      return { loginHistory: [], bannedDevices: new Set(), bannedIps: new Set(), generatedUsers: Object.create(null), generatedUserOrder: [], lockedDevices: [], gameSaves: Object.create(null), accountNames: Object.create(null), trustedAdminDevices: [], authSessions: [] };
+      return { loginHistory: [], bannedDevices: new Set(), bannedIps: new Set(), generatedUsers: Object.create(null), generatedUserOrder: [], lockedDevices: [], gameSaves: Object.create(null), accountNames: Object.create(null), guestAccess: Object.create(null), defaultGuestAccess: { ...DEFAULT_GUEST_ACCESS }, trustedAdminDevices: [], authSessions: [] };
     }
     throw error;
   }
@@ -182,6 +195,8 @@ const bannedDevices = persistentState.bannedDevices;
 const bannedIps = persistentState.bannedIps;
 const gameSaves = persistentState.gameSaves;
 const accountNames = persistentState.accountNames;
+const guestAccess = persistentState.guestAccess;
+let defaultGuestAccess = persistentState.defaultGuestAccess;
 const trustedAdminDevices = persistentState.trustedAdminDevices;
 for (const session of persistentState.authSessions) {
   sessionTokens.set(session.tokenHash, { code: session.code, expiresAt: session.expiresAt });
@@ -204,6 +219,8 @@ function savePersistentState() {
       .map(([code, user]) => ({ code, deviceID: user.lockedDevice })),
     gameSaves,
     accountNames,
+    guestAccess,
+    defaultGuestAccess,
     trustedAdminDevices,
     authSessions: Array.from(sessionTokens, ([tokenHash, session]) => ({
       tokenHash,
@@ -269,6 +286,7 @@ function issueSessionTokens(code) {
     throw new Error("Could not save login session");
   }
   const response = { role: users[code].role, sessionToken };
+  if (users[code].role === "guest") response.access = normalizeGuestAccess(guestAccess[code]);
   if (users[code].role === "admin") response.adminToken = sessionToken;
   return response;
 }
@@ -408,12 +426,18 @@ app.get("/session/restore", (req, res) => {
   }
 });
 
-app.get("/game-save", requireSession, (req, res) => {
+app.get("/session/me", requireSession, (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const role = users[req.userCode].role;
+  res.json({ role, access: role === "guest" ? normalizeGuestAccess(guestAccess[req.userCode]) : null });
+});
+
+app.get("/game-save", requireSession, requireGuestSection("games"), (req, res) => {
   res.set("Cache-Control", "no-store");
   res.json({ ...emptyGameSaves(), ...(gameSaves[req.userCode] || {}) });
 });
 
-app.put("/game-save", requireSession, (req, res) => {
+app.put("/game-save", requireSession, requireGuestSection("games"), (req, res) => {
   const { game, progress } = req.body || {};
   const newProgress = validateGameProgress(progress);
   if (!["dropper", "skyfall3d"].includes(game) || !newProgress) {
@@ -444,7 +468,7 @@ app.put("/game-save", requireSession, (req, res) => {
   res.json(games[game]);
 });
 
-app.delete("/game-save/:game", requireSession, (req, res) => {
+app.delete("/game-save/:game", requireSession, requireGuestSection("games"), (req, res) => {
   const { game } = req.params;
   if (!["dropper", "skyfall3d"].includes(game)) {
     return res.status(400).json({ error: "Invalid game" });
@@ -541,12 +565,14 @@ app.post("/generate", requireAdmin, (req, res) => {
       code = crypto.randomBytes(4).toString("hex");
     } while (Object.prototype.hasOwnProperty.call(users, code));
   }
-  users[code] = { role: "guest", lockedDevice: null };
+  users[code] = { role: "guest", lockedDevice: null, disabled: false };
+  guestAccess[code] = { ...defaultGuestAccess };
   generatedUserOrder.push(code);
   try {
     savePersistentState();
   } catch (error) {
     delete users[code];
+    delete guestAccess[code];
     generatedUserOrder.pop();
     console.error("Could not save generated code:", error);
     return res.status(500).json({ error: "Could not save generated code" });
@@ -557,9 +583,28 @@ app.post("/generate", requireAdmin, (req, res) => {
 app.get("/admin/users", requireAdmin, (_req, res) => {
   res.json(generatedUserOrder
     .filter(code => code !== adminCode && code !== userCode && users[code])
-    .map(code => ({ code, ...users[code], name: accountNames[code] || "" })));
+    .map(code => ({ code, ...users[code], name: accountNames[code] || "", access: normalizeGuestAccess(guestAccess[code]) })));
 });
 
+app.get("/admin/guest-access", requireAdmin, (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ defaults: defaultGuestAccess, labels: { dashboard: "Dashboard", games: "Games tab", extension: "Extension tab / mini-window settings", ai: "AI assistant", ideas: "Feature ideas" } });
+});
+app.put("/admin/guest-access/defaults", requireAdmin, (req, res) => {
+  const access = req.body?.access;
+  if (!access || typeof access !== "object" || Array.isArray(access) || Object.keys(access).some(key => !GUEST_SECTIONS.includes(key)) || GUEST_SECTIONS.some(key => typeof access[key] !== "boolean")) return res.status(400).json({ error: "Provide true or false for every guest section." });
+  const previous = defaultGuestAccess; defaultGuestAccess = normalizeGuestAccess(access);
+  try { savePersistentState(); } catch (error) { defaultGuestAccess = previous; console.error(error); return res.status(500).json({ error: "Could not save default guest access." }); }
+  res.json({ ok: true, defaults: defaultGuestAccess });
+});
+app.put("/admin/guest-access/:code", requireAdmin, (req, res) => {
+  const code = req.params.code, access = req.body?.access;
+  if (!users[code] || users[code].role !== "guest") return res.status(404).json({ error: "Guest code not found." });
+  if (!access || typeof access !== "object" || Array.isArray(access) || Object.keys(access).some(key => !GUEST_SECTIONS.includes(key)) || GUEST_SECTIONS.some(key => typeof access[key] !== "boolean")) return res.status(400).json({ error: "Provide true or false for every guest section." });
+  const previous = guestAccess[code]; guestAccess[code] = normalizeGuestAccess(access);
+  try { savePersistentState(); } catch (error) { if (previous) guestAccess[code] = previous; else delete guestAccess[code]; console.error(error); return res.status(500).json({ error: "Could not save guest access." }); }
+  res.json({ ok: true, access: guestAccess[code] });
+});
 app.post("/admin/user-name", requireAdmin, (req, res) => {
   const { code, name } = req.body || {};
   if (typeof code !== "string" || !Object.prototype.hasOwnProperty.call(users, code)) {
@@ -685,6 +730,9 @@ function saveIdeas() {
 }
 const ideaBuckets = new Map();
 app.post("/api/ideas", async (req, res) => {
+  const bearer = req.get("authorization")?.replace(/^Bearer\s+/i, "");
+  const activeSession = bearer && sessionTokens.get(hashTrustedToken(bearer));
+  if (activeSession && users[activeSession.code]?.role === "guest" && guestAccess[activeSession.code]?.ideas === false) return res.status(403).json({ error: "Feature ideas are disabled for this guest account." });
   res.set("Cache-Control", "no-store");
   if (!geminiApiKey) return res.status(503).json({ error: "Idea submissions are temporarily unavailable." });
   const body = req.body || {};
@@ -754,7 +802,7 @@ const AI_WINDOW_MS = 60_000;
 const AI_MAX_REQUESTS = 20;
 
 // General conversational Superstar AI. Conversation history is supplied by the popup; the API key stays server-side.
-app.post("/api/ai/chat", async (req, res) => {
+app.post("/api/ai/chat", requireSession, requireGuestSection("ai"), async (req, res) => {
   res.set("Cache-Control", "no-store");
   if (!geminiApiKey) {
     return res.status(503).json({ error: "AI is not configured yet. Add GEMINI_API_KEY to the Render environment." });
@@ -818,7 +866,7 @@ app.post("/api/ai/chat", async (req, res) => {
   }
 });
 
-app.post("/api/ai/answer", async (req, res) => {
+app.post("/api/ai/answer", requireSession, requireGuestSection("ai"), async (req, res) => {
   res.set("Cache-Control", "no-store");
   if (!geminiApiKey) {
     return res.status(503).json({ error: "AI is not configured yet. Add GEMINI_API_KEY to the Render environment." });

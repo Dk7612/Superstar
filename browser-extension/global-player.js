@@ -43,6 +43,7 @@
     .gamebar{display:flex;align-items:center;justify-content:space-between;gap:8px}
     .focusclock{font-size:34px;font-weight:700;text-align:center;letter-spacing:2px;padding:16px 0 6px}
     .focusactions{display:flex;justify-content:center;gap:8px}
+    .quizbox{display:flex;flex-direction:column;gap:8px}.quizanswer{border:1px solid #5365a5;border-radius:10px;background:#202d50;padding:10px;white-space:pre-wrap}.toggleline{display:flex;align-items:center;gap:8px;font-size:11px;color:#d5def8}
     .secondary{border:1px solid #5365a5;border-radius:9px;background:#26365f;color:white;padding:8px 12px}
     @media(prefers-reduced-motion:no-preference){.option{transition:background .12s,border-color .12s}}
   `;
@@ -92,6 +93,12 @@
     </button>
   `;
   root.appendChild(shell);
+  if (quizHost) {
+    const option = document.createElement("button"); option.className = "option"; option.dataset.view = "quiz";
+    const title = document.createElement("b"); title.textContent = "🧠 " + quizHost + " Helper";
+    const subtitle = document.createElement("small"); subtitle.textContent = "Analyze visible question";
+    option.append(title, subtitle); root.getElementById("options").appendChild(option);
+  }
 
   const menu = root.getElementById("menu");
   const view = root.getElementById("view");
@@ -99,6 +106,7 @@
   const viewtitle = root.getElementById("viewtitle");
   const launcher = root.getElementById("launcher");
   const history = [];
+  const quizHost = /(^|\\.)gimkit\\.com$/i.test(location.hostname) ? "Gimkit" : /(^|\\.)blooket\\.com$/i.test(location.hostname) ? "Blooket" : "";
   let open = false;
   let activeView = null;
   let waiting = false;
@@ -130,6 +138,7 @@
     if (name === "ai") renderAI();
     else if (name === "games") renderGames();
     else if (name === "focus") renderFocus();
+    else if (name === "quiz") renderQuiz();
     else if (name === "website") window.open("https://superstar-oa7t.onrender.com", "_blank", "noopener");
   }
   function element(tag, cls, text) {
@@ -174,6 +183,39 @@
     });
     input.focus();
   }
+  function renderQuiz() {
+    viewtitle.textContent = quizHost + " Helper";
+    const wrap = element("div", "quizbox");
+    const note = element("p", "welcome", "Reads visible question text and choices only after you click Analyze. It suggests an answer but never clicks or submits it.");
+    const quickLine = element("label", "toggleline");
+    const quick = document.createElement("input"); quick.type = "checkbox"; quick.checked = true;
+    quickLine.append(quick, "Quick reply (short answer)");
+    const analyze = element("button", "primary", "Analyze current question"); analyze.type = "button";
+    const status = element("p", "muted", "Ready when you are.");
+    const answer = element("div", "quizanswer", "Your suggestion will appear here."); answer.setAttribute("aria-live", "polite");
+    analyze.addEventListener("click", async () => {
+      if (waiting) return;
+      const visible = (document.body?.innerText || "").slice(0, 6500);
+      const question = visible.split("\\n").map(x => x.trim()).filter(Boolean).slice(-45).join("\\n");
+      const choices = Array.from(document.querySelectorAll("button,[role=button]")).filter(el => el.getClientRects().length && !el.disabled)
+        .map(el => (el.innerText || el.getAttribute("aria-label") || "").trim()).filter(x => x && x.length <= 200).slice(0, 8);
+      if (question.length < 5 || choices.length < 2) { status.textContent = "Couldn't find a visible question and at least two visible choices."; return; }
+      waiting = true; analyze.disabled = true; status.textContent = "Asking Gemini…";
+      try {
+        const response = await fetch("https://superstar-oa7t.onrender.com/api/ai/quiz-suggest", {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({site:quizHost,question,choices,quickReply:quick.checked}), signal:AbortSignal.timeout(18000)
+        });
+        const data = await response.json().catch(()=>({}));
+        if (!response.ok) throw new Error(data.error || "Could not analyze this question.");
+        answer.textContent = data.answer ? "Suggested answer: " + data.answer + (data.explanation ? "\\n\\n" + data.explanation : "") : "No confident match. " + (data.explanation || "");
+        status.textContent = "Suggestion ready. You choose what to do next.";
+      } catch(error) { status.textContent = error.message || "Question helper unavailable."; }
+      finally { waiting = false; analyze.disabled = false; }
+    });
+    wrap.append(note, quickLine, analyze, status, answer); viewbody.appendChild(wrap);
+  }
+
   function renderGames() {
     viewtitle.textContent = "Games";
     const title = element("p","welcome","Only Flappy Bird is available in the extension for now. Visit the website for the full games library.");
