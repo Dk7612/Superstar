@@ -108,6 +108,14 @@
         .then(permissions => {
           if (permissions.games !== true) { window.location.replace("/"); return; }
           document.documentElement.style.visibility = "visible";
+          setInterval(async () => {
+            try {
+              const check = await fetch("/account/permissions", {
+                headers: { "Authorization": "Bearer " + session.sessionToken }, cache: "no-store"
+              });
+              if (!check.ok) window.location.replace("/");
+            } catch { /* Retry next heartbeat if temporarily offline. */ }
+          }, 5000);
         })
         .catch(() => window.location.replace("/"));
     } catch {
