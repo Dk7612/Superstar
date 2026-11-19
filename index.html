@@ -476,7 +476,7 @@ function showAdminPanel() {
   document.getElementById("loginPanel").style.display="block";
   document.getElementById("bansPanel").style.display="block";
   document.getElementById("ideasAdminPanel").style.display = "block";
-  Promise.all([loadUsers(), loadLogins(), loadBans(), loadIdeas()]);
+  Promise.all([loadUsers(), loadDefaultPermissions(), loadLogins(), loadBans(), loadIdeas()]);
 }
 
 async function generateCode() {
