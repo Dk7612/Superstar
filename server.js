@@ -10,6 +10,8 @@ app.set("trust proxy", 1);
 app.use(cors());
 app.use(express.json({ limit: "3mb" }));
 app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "index.html")));
+app.get("/admin", (_req, res) => res.sendFile(path.join(__dirname, "index.html")));
+app.get("/settings", (_req, res) => res.sendFile(path.join(__dirname, "settings.html")));
 app.get("/games", (_req, res) => res.sendFile(path.join(__dirname, "games.html")));
 app.get("/ai", (_req, res) => res.sendFile(path.join(__dirname, "ai.html")));
 app.get("/starfield.js", (_req, res) => res.sendFile(path.join(__dirname, "starfield.js")));
