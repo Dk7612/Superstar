@@ -221,79 +221,77 @@
   }
   function renderQuiz() {
     viewtitle.textContent = quizHost + " Question Helper";
-    const note = element("p", "welcome", "Capture only the question and answer choices visible on this tab. Review or edit them, then ask AI for a suggested answer and explanation. Nothing is clicked or submitted for you.");
-    const questionLabel = element("label", "muted", "Question");
-    const question = element("textarea");
-    question.maxLength = 1200;
-    question.placeholder = "Capture or paste the question here…";
-    question.setAttribute("aria-label", "Quiz question");
-    const choicesLabel = element("label", "muted", "Answer choices (one per line)");
-    const choices = element("textarea");
-    choices.maxLength = 1800;
-    choices.placeholder = "Paste at least two choices, one per line…";
-    choices.setAttribute("aria-label", "Answer choices");
+    const note = element("p", "welcome", "Capture a screenshot of the visible question. Gemini will read the question and choices from the image, not scan the entire page. You can also edit the text below.");
+    const questionLabel = element("label", "muted", "Question (optional if screenshot is attached)");
+    const question = element("textarea"); question.maxLength = 1200; question.placeholder = "Optional: type or paste the question…"; question.setAttribute("aria-label", "Quiz question");
+    const choicesLabel = element("label", "muted", "Answer choices (optional if screenshot is attached)");
+    const choices = element("textarea"); choices.maxLength = 1800; choices.placeholder = "Optional: one answer choice per line…"; choices.setAttribute("aria-label", "Answer choices");
     const captureRow = element("div", "sendrow");
-    const capture = element("button", "secondary", "Capture visible text");
-    capture.type = "button";
-    const analyze = element("button", "primary", "Suggest answer");
-    analyze.type = "button";
-    const status = element("p", "status", "Ready. Check the captured text before analyzing.");
-    const answer = element("div", "bubble assistant", "Your suggestion will appear here.");
-    answer.setAttribute("aria-live", "polite");
+    const capture = element("button", "secondary", "Capture question screenshot"); capture.type = "button";
+    const analyze = element("button", "primary", "Suggest answer"); analyze.type = "button";
+    const preview = element("img"); preview.alt = "Screenshot that will be sent to Gemini";
+    preview.style.cssText = "display:none;width:100%;max-height:190px;object-fit:contain;border:1px solid #465780;border-radius:9px;background:#080f22";
+    const clearShot = element("button", "secondary", "Remove screenshot"); clearShot.type = "button"; clearShot.hidden = true;
+    let screenshotDataUrl = "";
+    const status = element("p", "status", "Capture the question area, then ask Gemini to read it.");
+    const answer = element("div", "bubble assistant", "Your suggestion will appear here."); answer.setAttribute("aria-live", "polite");
     captureRow.append(capture, analyze);
-    viewbody.append(note, questionLabel, question, choicesLabel, choices, captureRow, status, answer);
-
-    capture.addEventListener("click", () => {
-      const visibleText = (document.body?.innerText || "").split(/\n+/).map(line => line.trim()).filter(Boolean);
-      const candidates = Array.from(document.querySelectorAll("button,[role='button'],[data-testid*='answer' i],[class*='answer' i],[class*='choice' i]"))
-        .filter(node => node.getClientRects().length && !node.disabled && node.getAttribute("aria-disabled") !== "true")
-        .map(node => (node.innerText || node.getAttribute("aria-label") || "").trim())
-        .filter(text => text.length >= 1 && text.length <= 200 && !/^(submit|continue|next|back|exit|settings|pause|resume|shop|upgrade)$/i.test(text));
-      const uniqueChoices = [...new Set(candidates)].slice(0, 8);
-      if (!question.value.trim()) question.value = visibleText.slice(-35).join("\n").slice(-1200);
-      if (!choices.value.trim() && uniqueChoices.length >= 2) choices.value = uniqueChoices.join("\n");
-      status.textContent = "Captured visible page text. Edit the fields so they contain only the question and its choices.";
+    viewbody.append(note, captureRow, preview, clearShot, questionLabel, question, choicesLabel, choices, status, answer);
+    clearShot.addEventListener("click", () => {
+      screenshotDataUrl = ""; preview.removeAttribute("src"); preview.style.display = "none"; clearShot.hidden = true;
+      status.textContent = "Screenshot removed. You can capture another one.";
     });
-
+    capture.addEventListener("click", async () => {
+      if (waiting) return;
+      capture.disabled = true; status.textContent = "Capturing the visible tab…";
+      const wasOpen = open; shell.classList.remove("open"); menu.hidden = true; view.hidden = true;
+      try {
+        const result = await new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage({ type: "CAPTURE_VISIBLE_TAB" }, response => {
+            const runtimeError = chrome.runtime.lastError;
+            if (runtimeError) reject(new Error(runtimeError.message));
+            else if (!response?.ok || !response.dataUrl) reject(new Error(response?.error || "Could not capture this tab."));
+            else resolve(response);
+          });
+        });
+        screenshotDataUrl = result.dataUrl; preview.src = screenshotDataUrl; preview.style.display = "block"; clearShot.hidden = false;
+        status.textContent = "Screenshot captured. Gemini will receive this image and the optional text below.";
+      } catch (error) { status.textContent = "Screenshot failed: " + (error.message || "Try again."); }
+      finally {
+        if (wasOpen && activeView === "quiz") { shell.classList.add("open"); view.hidden = false; }
+        capture.disabled = false;
+      }
+    });
     analyze.addEventListener("click", async () => {
       if (waiting) return;
       const prompt = question.value.trim();
       const options = choices.value.split(/\n+/).map(value => value.trim()).filter(Boolean).slice(0, 8);
-      if (!prompt || prompt.length > 1200 || options.length < 2 || options.some(value => value.length > 200)) {
-        status.textContent = "Enter a question (up to 1,200 characters) and at least two choices (one per line, up to 200 characters each).";
-        return;
+      if (!screenshotDataUrl && (!prompt || options.length < 2)) {
+        status.textContent = "Capture a screenshot of the question, or enter a question and at least two choices."; return;
       }
-      waiting = true;
-      analyze.disabled = true;
-      capture.disabled = true;
-      status.textContent = "Checking the question…";
-      answer.textContent = "Thinking…";
+      if (prompt.length > 1200 || options.some(value => value.length > 200)) { status.textContent = "The question or an answer choice is too long."; return; }
+      waiting = true; analyze.disabled = true; capture.disabled = true;
+      status.textContent = "Sending the screenshot to Gemini…"; answer.textContent = "Reading the question…";
       try {
         const stored = await new Promise(resolve => chrome.storage.local.get(["superstarSessionToken", "quickReply"], resolve));
         const sessionToken = stored.superstarSessionToken || "";
         if (!sessionToken) throw new Error("Sign in to Superstar first, then reload this game tab.");
         const response = await fetch("https://superstar-oa7t.onrender.com/api/ai/answer", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + sessionToken },
-          body: JSON.stringify({ question: prompt, choices: options, quickReply: stored.quickReply !== false }),
-          signal: AbortSignal.timeout(25000)
+          method: "POST", headers: { "Content-Type": "application/json", "Authorization": "Bearer " + sessionToken },
+          body: JSON.stringify({ question: prompt, choices: options, screenshotDataUrl, quickReply: stored.quickReply !== false }),
+          signal: AbortSignal.timeout(35000)
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || "Could not analyze this question.");
         answer.textContent = data.answer
           ? "Suggested answer: " + data.answer + "\n\n" + (data.explanation || "No explanation was returned.") + "\n\nConfidence: " + Math.round((data.confidence || 0) * 100) + "%"
-          : "No confident match. " + (data.explanation || "Try checking the question and choices.");
+          : "No confident match. " + (data.explanation || "Try capturing a clearer screenshot.");
         status.textContent = "Suggestion ready. Review it and choose your answer yourself.";
       } catch (error) {
         const message = error && error.message ? error.message : "Question helper unavailable.";
-        status.textContent = "Request failed: " + message;
-        answer.textContent = "The AI request did not complete. " + message;
+        status.textContent = "Request failed: " + message; answer.textContent = "The AI request did not complete. " + message;
         console.error("Superstar question helper failed:", error);
-      } finally {
-        waiting = false;
-        analyze.disabled = false;
-        capture.disabled = false;
-      }
+      } finally { waiting = false; analyze.disabled = false; capture.disabled = false; }
     });
   }
 
