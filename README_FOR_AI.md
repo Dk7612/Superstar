@@ -366,11 +366,11 @@ The following captures the known requests and decisions from the project history
 - Verification: run `node --check server.js`, `node --check browser-extension/global-player.js`, and `node --check browser-extension/helper.js`; parse inline dashboard JavaScript; manually test signed-in AI chat, signed-out redirect, AI-disabled guest, and both Quick Reply settings on quiz answers while confirming ordinary chat remains naturally detailed.
 
 
-## Dashboard workspace redesign and performance pass
+## Dashboard settings, admin console, and performance refresh
 
-- Authenticated home page is an overview with quick links. The gear button opens a dedicated Settings workspace for extension preferences and appearance.
-- Admin accounts receive a separate Admin workspace with Access codes, Login activity, Security & bans, and private Feature Ideas sub-tabs. Guest accounts never receive the Admin tab. Existing admin actions continue to call the same server endpoints protected by `requireAdmin`.
-- Access-code search is available; codes remain masked until explicitly revealed. The private admin data and actions remain server-authorized.
-- Login monitoring runs only while the admin activity section is visible and the browser tab is foregrounded, at 15 seconds rather than every four seconds. Session heartbeat should remain responsive while avoiding unnecessary requests. Server-side authorization remains authoritative.
-- Starfield rendering is lighter: fewer particles, a lower device-pixel-ratio cap, no per-particle gradient allocations, redraws capped at roughly 30 FPS, and animation pauses in hidden tabs or when reduced motion is preferred. Dashboard cards avoid expensive backdrop blur.
-- Verification: syntax-check inline dashboard JavaScript and `starfield.js`; manually test admin/guest navigation, settings, every admin sub-tab, access-code search, saved appearance, reduced-motion behavior, hidden-tab pause/resume, and session-ban detection.
+- Home is a focused dashboard with feature cards and quick links. Appearance, theme, starfield, extension mini-window, quiz Quick Reply, and trusted-device preferences are grouped under the gear-icon **Settings** tab.
+- The **Admin** tab is revealed only after a verified admin session. Sub-sections group access-code generation and per-code permissions, login activity, bans/security, and the private feature-idea inbox. Admin APIs must continue enforcing admin authorization server-side; hiding navigation is only presentation.
+- Guest accounts cannot open Admin. Never expose admin tokens or access-code data in public page state. Keep codes masked until the owner explicitly reveals them.
+- Session heartbeat is reduced from every 5 seconds to every 30 seconds. Admin login polling runs every 15 seconds only while Admin > Login activity is open and the browser tab is visible.
+- Starfield rendering is capped at 90 particles and 1.5x device pixel ratio, capped near 30 FPS, and paused while the tab is hidden or reduced motion is enabled.
+- Verification: parse inline JavaScript; test logged-out, guest, and admin navigation; verify direct admin APIs remain protected; test settings persistence, mobile widths, and CPU/GPU with the tab visible and hidden.
