@@ -375,3 +375,6 @@ The following captures the known requests and decisions from the project history
 - Starfield animation now runs only one animation-frame loop (removing a duplicate loop), pauses while the tab is hidden, resumes on visibility, and respects reduced-motion settings. Canvas resize handling is passive.
 - The extension version is bumped to 1.3.0 so the release pipeline can publish the extension changes already included in the pending AI-tab work.
 - Verification: run Node syntax checks, parse extension manifest JSON, parse inline browser scripts, and manually test admin-vs-guest routing, settings synchronization with Chrome/Opera, theme persistence, reduced motion, background-tab CPU use, and admin polling behavior.
+
+- Admin quality-of-life: newly generated guest codes have a one-click copy action; resetting device locks and removing bans require confirmation, and reset failures are reported instead of silently refreshing the list.
+- Admin navigation and workspace visibility are gated by the verified admin session role. The `/admin` route keeps the login form available when signed out and does not render admin panels for guests.
