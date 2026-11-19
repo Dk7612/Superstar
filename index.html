@@ -188,6 +188,14 @@
     <h2>Banned devices</h2>
     <ul id="bannedDevices"></ul>
   </div>
+  <section class="card" id="ideasAdminPanel" style="display:none" aria-labelledby="ideasAdminTitle">
+    <h2 id="ideasAdminTitle">Feature idea inbox</h2>
+    <p class="notice">Private admin-only collection. Gemini summaries are shown with the original visitor submission.</p>
+    <div id="adminIdeasList" aria-live="polite"></div>
+  </section>
+  <footer style="text-align:center;padding:28px 0 12px">
+    <a href="/ideas"><button type="button">Suggest an Idea</button></a>
+  </footer>
 </div>
 
 <dialog id="banDialog" aria-labelledby="banDialogTitle">
@@ -439,7 +447,8 @@ function showAdminPanel() {
   document.getElementById("adminPanel").style.display="block";
   document.getElementById("loginPanel").style.display="block";
   document.getElementById("bansPanel").style.display="block";
-  Promise.all([loadUsers(), loadLogins(), loadBans()]);
+  document.getElementById("ideasAdminPanel").style.display = "block";
+  Promise.all([loadUsers(), loadLogins(), loadBans(), loadIdeas()]);
 }
 
 async function generateCode() {
@@ -598,6 +607,33 @@ async function loadBans() {
   const bans = await res.json();
   renderBans("bannedIps", "ip", bans.ips);
   renderBans("bannedDevices", "device", bans.devices);
+}
+
+async function loadIdeas() {
+  const res = await adminFetch("/admin/ideas", { headers: adminHeaders() });
+  if (!res.ok) return alert("Could not load feature ideas.");
+  const ideas = await res.json(), container = document.getElementById("adminIdeasList");
+  container.replaceChildren();
+  if (!ideas.length) { const p = document.createElement("p"); p.className = "notice"; p.textContent = "No ideas have been submitted yet."; container.appendChild(p); return; }
+  for (const idea of ideas) {
+    const article = document.createElement("article"); article.className = "card";
+    const heading = document.createElement("h3"); heading.textContent = idea.title;
+    const meta = document.createElement("p"); meta.className = "notice";
+    meta.textContent = idea.category + " · " + new Date(idea.createdAt).toLocaleString();
+    const summary = document.createElement("p"); summary.textContent = idea.summary;
+    const originalTitle = document.createElement("h4"); originalTitle.textContent = "Original submission";
+    const original = document.createElement("p"); original.style.whiteSpace = "pre-wrap";
+    original.textContent = idea.originalTitle + "\n" + idea.description;
+    const copy = document.createElement("button"); copy.type = "button"; copy.textContent = "Copy summary + original";
+    copy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(idea.title + "\nCategory: " + idea.category +
+          "\nSummary: " + idea.summary + "\n\nOriginal submission: " + idea.originalTitle + "\n" + idea.description);
+        copy.textContent = "Copied!";
+      } catch { copy.textContent = "Copy unavailable"; }
+    });
+    article.append(heading, meta, summary, originalTitle, original, copy); container.appendChild(article);
+  }
 }
 
 function renderBans(elementId, type, values) {
