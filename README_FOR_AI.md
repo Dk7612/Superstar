@@ -231,3 +231,14 @@ The following captures the known requests and decisions from the project history
 - Clicking the Superstar launcher star closes the Focus view. The launcher hover handler must not switch away from Focus while the GUI is already open.
 - Other extension menu/tool views retain the normal click-outside-to-dismiss behavior; the explicit × and Escape close controls remain available.
 - Regression checks: open Focus, click outside (must remain open), click the launcher (must close), then verify outside clicks still dismiss other views.
+
+
+## Guest-code permissions and click-only launcher (work in progress)
+
+- Added an admin-only default permission editor for newly generated guest codes and an individual **Permissions** button beside every generated access code.
+- Permission categories: Dashboard, Games, Extension, AI Assistant, and Feature Ideas. Changing defaults does not overwrite existing guest-code settings; each code can be customized independently.
+- Permission settings are persisted in `DATA_DIR/service-data.json`. Existing guest codes default to full access for backwards compatibility. Admin access and the existing ban system remain unchanged.
+- The game-save API checks the guest's Games permission server-side; this is not just a hidden navigation link.
+- The extension launcher now opens only when the star is clicked. Hover no longer opens it, and clicking the star toggles the menu.
+- The favicon transparency filter was softened to preserve more of the original star colors. Verify the star and background visually in Opera GX on both light and dark pages.
+- Verification still required: `node --check server.js`, `node --check browser-extension/global-player.js`, manifest JSON validation, default inheritance and per-code override tests, Games API 403 test, and manual click-only launcher testing.
