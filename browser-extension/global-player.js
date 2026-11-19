@@ -9,7 +9,7 @@
   const root = host.attachShadow({ mode: "closed" });
 
   const style = document.createElement("style");
-  style.textContent = \`
+  style.textContent = `
     *{box-sizing:border-box}
     :host{all:initial}
     .shell{font:13px/1.45 Arial,sans-serif;color:#f4f6ff;width:min(310px,calc(100vw - 32px));position:relative}
@@ -45,12 +45,12 @@
     .focusactions{display:flex;justify-content:center;gap:8px}
     .secondary{border:1px solid #5365a5;border-radius:9px;background:#26365f;color:white;padding:8px 12px}
     @media(prefers-reduced-motion:no-preference){.option{transition:background .12s,border-color .12s}}
-  \`;
+  `;
   root.appendChild(style);
 
   const shell = document.createElement("section");
   shell.className = "shell";
-  shell.innerHTML = \`
+  shell.innerHTML = `
     <section class="menu" id="menu" hidden aria-label="Superstar menu">
       <header class="brand"><img src="https://superstar-oa7t.onrender.com/favicon.png" alt=""><strong>Superstar</strong><span class="hint">Quick menu</span></header>
       <div class="options" id="options">
@@ -68,7 +68,7 @@
     <button class="launcher" id="launcher" type="button" aria-label="Open Superstar menu" aria-expanded="false">
       <img src="https://superstar-oa7t.onrender.com/favicon.png" alt="Superstar">
     </button>
-  \`;
+  `;
   root.appendChild(shell);
 
   const menu = root.getElementById("menu");
