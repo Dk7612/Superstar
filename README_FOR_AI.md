@@ -308,3 +308,11 @@ The following captures the known requests and decisions from the project history
 - Fixed a startup-order bug in `browser-extension/global-player.js`: the first extension-permission check ran before the closed Shadow DOM variable `root` was initialized. Accessing `root` triggered a temporal-dead-zone ReferenceError, which the catch block interpreted as an access failure and hid the launcher.
 - Permission polling and storage-change listeners now start only after the Shadow DOM and launcher/menu elements are created. The launcher remains hidden until a valid signed-in session has Extension permission, then becomes visible and applies per-feature menu permissions.
 - Verification: run `node --check browser-extension/global-player.js`, validate the manifest, and manually test signed-out, signed-in admin, Extension-enabled guest, and Extension-disabled guest states in Opera GX. Reload the Superstar tab after signing in so the content script can receive the session token.
+
+
+## Extension v1.2.5 launcher startup hotfix release
+
+- Publishes the launcher initialization fix from the dashboard/extension startup hotfix. Version 1.2.5 is required because GitHub Releases cannot publish a second release using the already-published `extension-v1.2.4` tag.
+- No signing identity or update URL changes: retain the existing persistent `EXTENSION_PRIVATE_KEY_B64` secret and stable update feed.
+- The v1.2.5 CRX includes the corrected permission-check startup order; the signed extension release workflow must complete successfully before asking users to update.
+- Verification: confirm the workflow publishes `extension-v1.2.5`, `Superstar.crx`, and `updates.xml`; then test the star in Opera GX after the signed update and a reload of the Superstar website tab.
