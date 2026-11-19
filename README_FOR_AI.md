@@ -374,3 +374,11 @@ The following captures the known requests and decisions from the project history
 - Session heartbeat is reduced from every 5 seconds to every 30 seconds. Admin login polling runs every 15 seconds only while Admin > Login activity is open and the browser tab is visible.
 - Starfield rendering is capped at 90 particles and 1.5x device pixel ratio, capped near 30 FPS, and paused while the tab is hidden or reduced motion is enabled.
 - Verification: parse inline JavaScript; test logged-out, guest, and admin navigation; verify direct admin APIs remain protected; test settings persistence, mobile widths, and CPU/GPU with the tab visible and hidden.
+
+
+## Extension v1.3.0 — website AI and dashboard refresh
+
+- Publishes the website AI tab, quiz-only Quick Reply behavior, refreshed dashboard navigation, gear-icon Settings workspace, dedicated admin console, and lighter starfield/session polling behavior.
+- Extension manifest version is 1.3.0 so the signed Opera release workflow can publish a new CRX/update feed rather than reusing the v1.2.9 release tag.
+- Chrome ZIP users still need to replace/reload their unpacked or Developer Mode installation manually unless Superstar is published through the Chrome Web Store. Opera signed CRX users can receive updates through the existing update feed.
+- Validation: parse the manifest JSON and syntax-check changed extension scripts before publishing; browser and live-site regression checks remain necessary.
