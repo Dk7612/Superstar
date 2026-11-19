@@ -223,3 +223,11 @@ The following captures the known requests and decisions from the project history
 - The GUI now closes only when the user clicks outside the extension host. The document-level click listener runs in capture phase and checks the composed event path, so clicks inside the closed Shadow DOM (menu options, AI input/send, game, focus controls, back/close) are treated as inside and do not accidentally dismiss the GUI.
 - The explicit × close control and Escape key continue to close the GUI. Clicking the launcher while already open does not force-close it; an outside click is the dismissal gesture.
 - Regression checks: open the launcher, move the pointer anywhere outside without clicking (GUI must remain open), click outside (GUI must close), then verify all internal controls remain usable and do not trigger outside dismissal. Confirm closed hit area remains 46×46 px and open hit area expands with the GUI.
+
+
+## Subway Surfers Focus view persistence
+
+- When the Subway Surfers Focus tool is open, clicks outside the extension host do not dismiss the GUI; the focus timer remains visible while the user interacts elsewhere on the page.
+- Clicking the Superstar launcher star closes the Focus view. The launcher hover handler must not switch away from Focus while the GUI is already open.
+- Other extension menu/tool views retain the normal click-outside-to-dismiss behavior; the explicit × and Escape close controls remain available.
+- Regression checks: open Focus, click outside (must remain open), click the launcher (must close), then verify outside clicks still dismiss other views.
