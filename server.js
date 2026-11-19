@@ -1013,10 +1013,12 @@ app.post("/api/ai/answer", requireFeaturePermission("ai"), async (req, res) => {
     }
   }
 
+  const quickReply = body.quickReply !== false;
   const prompt = [
     "You help a student understand and answer a multiple-choice question.",
     "Use the question and choices only. Do not assume access to a game's answer key.",
     "Choose the best matching choice exactly as written. If the information is insufficient, set answer to an empty string and explain uncertainty.",
+    quickReply ? "Keep the explanation to one brief sentence." : "Give a fuller explanation that teaches the reasoning.",
     "Return JSON with exactly these fields: answer (string), explanation (string), confidence (number from 0 to 1).",
     "",
     "Question: " + question,
