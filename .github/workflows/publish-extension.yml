@@ -37,7 +37,15 @@ jobs:
             exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          node -e "const m=require('./browser-extension/manifest.json'); if(m.manifest_version!==3) process.exit(1); if(!m.update_url) { console.error('Missing update_url'); process.exit(1); }"
+          node -e "const m=require('./browser-extension/manifest.json'); if(m.manifest_version!==3) process.exit(1); if(!m.update_url) { console.error('Missing update_url'); process.exit(1); } if(Number(m.minimum_chrome_version.split('.')[0]) < 103) process.exit(1);"
+
+      - name: Build Chrome unpacked-install ZIP
+        run: |
+          mkdir -p "$RUNNER_TEMP/chrome-package"
+          cp -R browser-extension "$RUNNER_TEMP/chrome-package/browser-extension"
+          cd "$RUNNER_TEMP/chrome-package"
+          zip -qr "$RUNNER_TEMP/Superstar-Chrome.zip" browser-extension
+          test -s "$RUNNER_TEMP/Superstar-Chrome.zip"
 
       - name: Restore the persistent signing key
         env:
@@ -51,7 +59,7 @@ jobs:
           chmod 600 "$RUNNER_TEMP/superstar-extension.pem"
           openssl pkey -in "$RUNNER_TEMP/superstar-extension.pem" -noout
 
-      - name: Build signed CRX and update manifest
+      - name: Build signed Opera CRX and update manifest
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
@@ -77,7 +85,8 @@ jobs:
             exit 1
           fi
           gh release create "$TAG" \
+            "$RUNNER_TEMP/Superstar-Chrome.zip#Superstar-Chrome.zip" \
             "$RUNNER_TEMP/Superstar.crx#Superstar.crx" \
             "$RUNNER_TEMP/updates.xml#updates.xml" \
             --title "Superstar Extension v$VERSION" \
-            --notes "Signed automatic-update package for Superstar Mini Window v$VERSION."
+            --notes "Chrome ZIP package and signed Opera-compatible CRX for Superstar Mini Window v$VERSION. Chrome Developer Mode installs update manually; automatic Chrome updates require Chrome Web Store distribution."
