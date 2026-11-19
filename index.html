@@ -27,8 +27,8 @@
     .home-tile span { color:#b7c1df; line-height:1.5; }
     .home-tile .tile-icon { font-size:25px; }
     .admin-view .container > h1, .admin-view #installNotice, .admin-view #welcomePanel, .admin-view #homeTiles, .admin-view #loginCard { display:none !important; }
-    .admin-view #adminPanel, .admin-view #loginPanel, .admin-view #bansPanel, .admin-view #ideasAdminPanel { display:block !important; }
-    .admin-view #adminPanel { margin-top:22px; }
+    .admin-view.admin-role #adminPanel, .admin-view.admin-role #loginPanel, .admin-view.admin-role #bansPanel, .admin-view.admin-role #ideasAdminPanel { display:block !important; }
+    .admin-view.admin-role #adminPanel { margin-top:22px; }
     #adminNavLink { display:none; }
     body.authenticated #adminNavLink.admin-visible { display:inline-flex; }
     .visually-hidden-settings { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
@@ -458,7 +458,7 @@ function showAuthenticatedDashboard(session, remembered = false) {
   document.getElementById("loginCard").style.display = "none";
   document.getElementById("welcomePanel").style.display = "block";
   if (role === "admin") document.getElementById("adminNavLink").classList.add("admin-visible");
-  if (location.pathname === "/admin" && role === "admin") document.body.classList.add("admin-view");
+  if (location.pathname === "/admin" && role === "admin") document.body.classList.add("admin-view", "admin-role");
   document.getElementById("welcomeMessage").textContent = remembered
     ? "Signed in as admin on this remembered device. Enjoy the stars."
     : `Signed in as ${role}. Enjoy the stars.`;
@@ -519,7 +519,7 @@ function showAdminPanel() {
   for (const id of ["adminPanel", "loginPanel", "bansPanel", "ideasAdminPanel"]) {
     document.getElementById(id).style.display = "block";
   }
-  document.body.classList.add("admin-view");
+  document.body.classList.add("admin-view", "admin-role");
   document.getElementById("welcomePanel").style.display = "none";
   document.getElementById("homeTiles").style.display = "none";
   Promise.all([loadUsers(), loadDefaultPermissions(), loadLogins(), loadBans(), loadIdeas(), loadStorageStatus()]);
