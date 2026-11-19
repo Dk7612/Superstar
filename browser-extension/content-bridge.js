@@ -13,6 +13,7 @@
     if (message.type === "SET_MINI_MODE") {
       payload.mode = message.mode === "full-site" ? "full-site" : "ai-helper";
     }
+    if (message.type === "SET_QUICK_REPLY") payload.enabled = message.enabled === true;
     if (message.type === "SET_SESSION" && typeof message.sessionToken === "string" && /^[a-f0-9]{64}$/i.test(message.sessionToken)) {
       payload.sessionToken = message.sessionToken;
     }
@@ -24,7 +25,9 @@
         type: message.type + "_RESULT",
         requestId: typeof message.requestId === "string" ? message.requestId : "",
         ok: !runtimeError && !!response?.ok,
-        mode: response?.mode || "ai-helper"
+        mode: response?.mode || "ai-helper",
+        quickReply: response?.quickReply !== false,
+        enabled: response?.enabled === true
       }, ALLOWED_ORIGIN);
     });
   });
