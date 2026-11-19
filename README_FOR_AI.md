@@ -374,3 +374,13 @@ The following captures the known requests and decisions from the project history
 - Dashboard session heartbeat now runs every 30 seconds instead of every 5 seconds. Admin login polling runs every 15 seconds only while the Admin > Login activity section is open and the browser tab is visible.
 - The starfield is capped at 90 particles and 1.5x device pixel ratio, uses simple cached-style strokes rather than per-particle gradient allocation, caps animation near 30 FPS, and pauses while the tab is hidden or reduced motion is enabled.
 - Verification: parse the inline JavaScript in `index.html`; test logged-out, guest, and admin navigation; confirm Admin is unavailable to guests and direct admin APIs remain protected; verify theme/appearance and extension settings; test narrow mobile widths; profile CPU/GPU with the tab visible and hidden.
+
+
+## Dashboard settings, admin console, and performance refresh
+
+- Home is a focused dashboard with feature cards and quick links. Appearance, theme, starfield, extension mini-window, quiz Quick Reply, and trusted-device preferences are grouped under the gear-icon **Settings** tab.
+- The **Admin** tab is revealed only after a verified admin session. Sub-sections group access-code generation and per-code permissions, login activity, bans/security, and the private feature-idea inbox. Admin APIs must continue enforcing admin authorization server-side; hiding navigation is only presentation.
+- Guest accounts cannot open Admin. Never expose admin tokens or access-code data in public page state. Keep codes masked until the owner explicitly reveals them.
+- Session heartbeat is reduced from every 5 seconds to every 30 seconds. Admin login polling runs every 15 seconds only while Admin > Login activity is open and the browser tab is visible.
+- Starfield rendering is capped at 90 particles and 1.5x device pixel ratio, capped near 30 FPS, and paused while the tab is hidden or reduced motion is enabled.
+- Verification: parse inline JavaScript; test logged-out, guest, and admin navigation; verify direct admin APIs remain protected; test settings persistence, mobile widths, and CPU/GPU with the tab visible and hidden.
