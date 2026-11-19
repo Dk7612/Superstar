@@ -364,3 +364,13 @@ The following captures the known requests and decisions from the project history
 - The dashboard hides the AI navigation link when the signed-in account lacks AI permission. Server-side endpoint permission checks remain authoritative.
 - Quick Reply is strictly a quiz-answer preference. It affects `POST /api/ai/answer` requests from the Gimkit/Blooket helper and standalone question helper only. It must never shorten general conversational chat in either the extension or website AI tab.
 - Verification: run `node --check server.js`, `node --check browser-extension/global-player.js`, and `node --check browser-extension/helper.js`; parse inline dashboard JavaScript; manually test signed-in AI chat, signed-out redirect, AI-disabled guest, and both Quick Reply settings on quiz answers while confirming ordinary chat remains naturally detailed.
+
+
+## Dashboard settings, admin console, and performance refresh
+
+- The home page is a focused dashboard with feature cards and quick links. Appearance, theme, starfield, extension mini-window, quiz Quick Reply, and trusted-device preferences are grouped under the gear-icon **Settings** tab.
+- The **Admin** tab is revealed only after a verified admin session. Its sub-sections group access-code generation and per-code permissions, login activity, bans/security, and the private feature-idea inbox. Admin APIs must continue enforcing admin authorization server-side; hiding the navigation is only presentation.
+- Guest accounts cannot open the Admin tab. Never expose admin tokens or access-code data in public page state. Keep access codes masked until the owner explicitly reveals them.
+- Dashboard session heartbeat now runs every 30 seconds instead of every 5 seconds. Admin login polling runs every 15 seconds only while the Admin > Login activity section is open and the browser tab is visible.
+- The starfield is capped at 90 particles and 1.5x device pixel ratio, uses simple cached-style strokes rather than per-particle gradient allocation, caps animation near 30 FPS, and pauses while the tab is hidden or reduced motion is enabled.
+- Verification: parse the inline JavaScript in `index.html`; test logged-out, guest, and admin navigation; confirm Admin is unavailable to guests and direct admin APIs remain protected; verify theme/appearance and extension settings; test narrow mobile widths; profile CPU/GPU with the tab visible and hidden.
