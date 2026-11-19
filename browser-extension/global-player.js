@@ -1,6 +1,7 @@
 (() => {
   "use strict";
   if (window.top !== window || document.getElementById("superstar-global-player-host")) return;
+  const quizHost = /(^|\.)gimkit\.com$/i.test(location.hostname) ? "Gimkit" : /(^|\.)blooket\.com$/i.test(location.hostname) ? "Blooket" : "";
 
   const host = document.createElement("div");
   host.id = "superstar-global-player-host";
@@ -21,9 +22,11 @@
       const aiOption = root?.querySelector?.('[data-view="ai"]');
       const gamesOption = root?.querySelector?.('[data-view="games"]');
       const websiteOption = root?.querySelector?.('[data-view="website"]');
+      const quizOption = root?.querySelector?.('[data-view="quiz"]');
       if (aiOption) aiOption.hidden = permissions.ai !== true;
       if (gamesOption) gamesOption.hidden = permissions.games !== true;
       if (websiteOption) websiteOption.hidden = permissions.dashboard !== true;
+      if (quizOption) quizOption.hidden = permissions.ai !== true;
     } catch { host.style.display = "none"; }
   }
   const root = host.attachShadow({ mode: "closed" });
@@ -112,6 +115,17 @@
     </button>
   `;
   root.appendChild(shell);
+  if (quizHost) {
+    const quizOption = document.createElement("button");
+    quizOption.className = "option";
+    quizOption.dataset.view = "quiz";
+    const quizTitle = document.createElement("b");
+    quizTitle.textContent = "🧠 " + quizHost + " Question Helper";
+    const quizSubtitle = document.createElement("small");
+    quizSubtitle.textContent = "Capture a question · get an explanation";
+    quizOption.append(quizTitle, quizSubtitle);
+    root.getElementById("options").appendChild(quizOption);
+  }
 
   const menu = root.getElementById("menu");
   const view = root.getElementById("view");
@@ -156,6 +170,7 @@
     stopGame();
     if (name === "ai") renderAI();
     else if (name === "games") renderGames();
+    else if (name === "quiz") renderQuiz();
     else if (name === "focus") renderFocus();
     else if (name === "website") window.open("https://superstar-oa7t.onrender.com", "_blank", "noopener");
   }
@@ -204,6 +219,82 @@
     });
     input.focus();
   }
+  function renderQuiz() {
+    viewtitle.textContent = quizHost + " Question Helper";
+    const note = element("p", "welcome", "Capture only the question and answer choices visible on this tab. Review or edit them, then ask AI for a suggested answer and explanation. Nothing is clicked or submitted for you.");
+    const questionLabel = element("label", "muted", "Question");
+    const question = element("textarea");
+    question.maxLength = 1200;
+    question.placeholder = "Capture or paste the question here…";
+    question.setAttribute("aria-label", "Quiz question");
+    const choicesLabel = element("label", "muted", "Answer choices (one per line)");
+    const choices = element("textarea");
+    choices.maxLength = 1800;
+    choices.placeholder = "Paste at least two choices, one per line…";
+    choices.setAttribute("aria-label", "Answer choices");
+    const captureRow = element("div", "sendrow");
+    const capture = element("button", "secondary", "Capture visible text");
+    capture.type = "button";
+    const analyze = element("button", "primary", "Suggest answer");
+    analyze.type = "button";
+    const status = element("p", "status", "Ready. Check the captured text before analyzing.");
+    const answer = element("div", "bubble assistant", "Your suggestion will appear here.");
+    answer.setAttribute("aria-live", "polite");
+    captureRow.append(capture, analyze);
+    viewbody.append(note, questionLabel, question, choicesLabel, choices, captureRow, status, answer);
+
+    capture.addEventListener("click", () => {
+      const visibleText = (document.body?.innerText || "").split(/\n+/).map(line => line.trim()).filter(Boolean);
+      const candidates = Array.from(document.querySelectorAll("button,[role='button'],[data-testid*='answer' i],[class*='answer' i],[class*='choice' i]"))
+        .filter(node => node.getClientRects().length && !node.disabled && node.getAttribute("aria-disabled") !== "true")
+        .map(node => (node.innerText || node.getAttribute("aria-label") || "").trim())
+        .filter(text => text.length >= 1 && text.length <= 200 && !/^(submit|continue|next|back|exit|settings|pause|resume|shop|upgrade)$/i.test(text));
+      const uniqueChoices = [...new Set(candidates)].slice(0, 8);
+      if (!question.value.trim()) question.value = visibleText.slice(-35).join("\n").slice(-1200);
+      if (!choices.value.trim() && uniqueChoices.length >= 2) choices.value = uniqueChoices.join("\n");
+      status.textContent = "Captured visible page text. Edit the fields so they contain only the question and its choices.";
+    });
+
+    analyze.addEventListener("click", async () => {
+      if (waiting) return;
+      const prompt = question.value.trim();
+      const options = choices.value.split(/\n+/).map(value => value.trim()).filter(Boolean).slice(0, 8);
+      if (!prompt || prompt.length > 1200 || options.length < 2 || options.some(value => value.length > 200)) {
+        status.textContent = "Enter a question (up to 1,200 characters) and at least two choices (one per line, up to 200 characters each).";
+        return;
+      }
+      waiting = true;
+      analyze.disabled = true;
+      capture.disabled = true;
+      status.textContent = "Checking the question…";
+      answer.textContent = "Thinking…";
+      try {
+        const stored = await new Promise(resolve => chrome.storage.local.get(["superstarSessionToken", "quickReply"], resolve));
+        const sessionToken = stored.superstarSessionToken || "";
+        if (!sessionToken) throw new Error("Sign in to Superstar first, then reload this game tab.");
+        const response = await fetch("https://superstar-oa7t.onrender.com/api/ai/answer", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + sessionToken },
+          body: JSON.stringify({ question: prompt, choices: options, quickReply: stored.quickReply !== false }),
+          signal: AbortSignal.timeout(25000)
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Could not analyze this question.");
+        answer.textContent = data.answer
+          ? "Suggested answer: " + data.answer + "\n\n" + (data.explanation || "No explanation was returned.") + "\n\nConfidence: " + Math.round((data.confidence || 0) * 100) + "%"
+          : "No confident match. " + (data.explanation || "Try checking the question and choices.");
+        status.textContent = "Suggestion ready. Review it and choose your answer yourself.";
+      } catch (error) {
+        status.textContent = error.message || "Question helper unavailable.";
+        answer.textContent = "No suggestion yet.";
+      } finally {
+        waiting = false;
+        analyze.disabled = false;
+        capture.disabled = false;
+      }
+    });
+  }
+
   function renderGames() {
     viewtitle.textContent = "Games";
     const title = element("p","welcome","Only Flappy Bird is available in the extension for now. Visit the website for the full games library.");
