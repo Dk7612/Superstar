@@ -199,6 +199,7 @@ The following captures the known requests and decisions from the project history
 
 - Fixed the hover-to-menu transition that could dismiss the popup while the pointer moved from the bottom-left launcher up into the menu. The launcher, menu, and tool view now each manage pointer entry/exit, with a 1,000 ms delayed close so the pointer can cross the small visual gap.
 - Replaced immediate focus-loss dismissal with the same delayed close. Clicking a menu option or moving focus between controls no longer instantly hides the menu; an active pointer over the widget keeps it open.
+  - Focusout dismissal is suppressed while the mouse pointer is still inside the widget, including the moment an option click replaces the menu contents with a tool view.
 - Touch interaction remains click-based; the hover dismissal timer is only driven by mouse pointer events.
 - The shared `/favicon.png` asset has a dark navy square background baked into the image. Applied CSS `mix-blend-mode: screen` to both logo instances so the near-black/navy field blends into the page while keeping the bright multicolor star visible; the launcher button itself remains transparent and has no border or shadow.
 - No new permissions, page-reading behavior, or host-page interaction was added.
