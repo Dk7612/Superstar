@@ -19,7 +19,11 @@
       const permissions = await response.json();
       host.style.display = permissions.extension === true ? "block" : "none";
       const aiOption = root?.querySelector?.('[data-view="ai"]');
+      const gamesOption = root?.querySelector?.('[data-view="games"]');
+      const websiteOption = root?.querySelector?.('[data-view="website"]');
       if (aiOption) aiOption.hidden = permissions.ai !== true;
+      if (gamesOption) gamesOption.hidden = permissions.games !== true;
+      if (websiteOption) websiteOption.hidden = permissions.dashboard !== true;
     } catch { host.style.display = "none"; }
   }
   checkExtensionAccess();
