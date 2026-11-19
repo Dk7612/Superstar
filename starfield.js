@@ -91,8 +91,20 @@
 
   }
 
+  function canAnimate() {
+    return !reducedMotion.matches && document.visibilityState === "visible" && canvas.getClientRects().length > 0;
+  }
+
+  function startAnimation() {
+    if (canAnimate() && !animationActive) {
+      animationActive = true;
+      lastFrameTime = 0;
+      window.requestAnimationFrame(animate);
+    }
+  }
+
   function animate(timestamp) {
-    if (reducedMotion.matches || document.visibilityState !== "visible") {
+    if (!canAnimate()) {
       animationActive = false;
       return;
     }
@@ -124,24 +136,16 @@
   });
   window.addEventListener("resize", resize, { passive: true });
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && !reducedMotion.matches && !animationActive) {
-      animationActive = true;
-      lastFrameTime = 0;
-      window.requestAnimationFrame(animate);
-    }
+    startAnimation();
   });
   reducedMotion.addEventListener("change", () => {
     lastFrameTime = 0;
     draw();
-    if (!reducedMotion.matches && document.visibilityState === "visible" && !animationActive) {
-      animationActive = true;
-      window.requestAnimationFrame(animate);
-    }
+    startAnimation();
   });
+  const bodyObserver = new MutationObserver(startAnimation);
+  bodyObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
   applySettings();
   resize();
-  if (!reducedMotion.matches && document.visibilityState === "visible") {
-    animationActive = true;
-    window.requestAnimationFrame(animate);
-  }
+  startAnimation();
 })();
