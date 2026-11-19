@@ -37,6 +37,15 @@ chrome.action.onClicked.addListener(() => {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || typeof message.type !== "string") return false;
 
+  if (message.type === "SET_SESSION") {
+    if (typeof message.sessionToken !== "string" || !/^[a-f0-9]{64}$/i.test(message.sessionToken)) {
+      sendResponse({ ok: false }); return false;
+    }
+    chrome.storage.local.set({ superstarSessionToken: message.sessionToken })
+      .then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+
   if (message.type === "GET_MINI_MODE") {
     getMode().then(mode => sendResponse({ ok: true, mode }))
       .catch(() => sendResponse({ ok: false, mode: DEFAULT_MODE }));
