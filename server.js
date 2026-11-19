@@ -16,6 +16,7 @@ app.get("/dropper.js", (_req, res) => res.sendFile(path.join(__dirname, "dropper
 app.get("/physics3d.js", (_req, res) => res.sendFile(path.join(__dirname, "physics3d.js")));
 app.get("/dropper3d.js", (_req, res) => res.sendFile(path.join(__dirname, "dropper3d.js")));
 app.get("/favicon.png", (_req, res) => res.sendFile(path.join(__dirname, "favicon.png")));
+app.get("/ideas", (_req, res) => res.sendFile(path.join(__dirname, "ideas.html")));
 
 const adminCode = process.env.ADMIN_CODE || process.env.SUPERADMIN_CODE;
 const userCode = process.env.USER_CODE;
@@ -659,6 +660,96 @@ app.delete("/admin/bans", requireAdmin, (req, res) => {
 
 // Superstar Gimkit AI helper. The API key stays on the server and is never sent to browsers.
 const geminiApiKey = process.env.GEMINI_API_KEY;
+
+// Public suggestions are stored on the persistent DATA_DIR volume.
+const ideasFile = path.join(dataDirectory, "ideas.json");
+const MAX_IDEAS = 2000;
+function loadIdeas() {
+  try {
+    const items = JSON.parse(fs.readFileSync(ideasFile, "utf8"));
+    if (!Array.isArray(items) || items.length > MAX_IDEAS || items.some(x =>
+      !x || typeof x.id !== "string" || typeof x.title !== "string" ||
+      typeof x.originalTitle !== "string" || typeof x.description !== "string" ||
+      typeof x.summary !== "string" || typeof x.category !== "string" ||
+      typeof x.createdAt !== "string")) throw new Error("Stored ideas have an invalid format");
+    return items;
+  } catch (error) {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  }
+}
+let submittedIdeas = loadIdeas();
+function saveIdeas() {
+  const tmp = ideasFile + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(submittedIdeas, null, 2), { encoding: "utf8", mode: 0o600 });
+  fs.renameSync(tmp, ideasFile);
+}
+const ideaBuckets = new Map();
+app.post("/api/ideas", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  if (!geminiApiKey) return res.status(503).json({ error: "Idea submissions are temporarily unavailable." });
+  const body = req.body || {};
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+  const description = typeof body.description === "string" ? body.description.trim() : "";
+  if (!title || title.length > 100 || !description || description.length > 2000)
+    return res.status(400).json({ error: "Add a title (up to 100 characters) and description (up to 2,000 characters)." });
+  if (submittedIdeas.length >= MAX_IDEAS) return res.status(503).json({ error: "The idea inbox is full." });
+  const now = Date.now(), ip = normalizeIp(req.ip) || "unknown";
+  const bucket = ideaBuckets.get(ip) || { start: now, count: 0 };
+  if (now - bucket.start >= 3600000) { bucket.start = now; bucket.count = 0; }
+  if (++bucket.count > 5) return res.status(429).json({ error: "Please wait before submitting another idea." });
+  ideaBuckets.set(ip, bucket);
+  const prompt = [
+    "You organize feature requests for the website Superstar.",
+    "Summarize the suggestion faithfully and do not invent requested features.",
+    "Return JSON with exactly title (short), summary (2-4 concise actionable sentences), category.",
+    "Category must be one of: Website, Games, AI, Browser extension, Other.",
+    "Visitor title: " + title, "Visitor description: " + description
+  ].join("\n");
+  try {
+    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + encodeURIComponent(geminiApiKey), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: { type: "OBJECT", properties: {
+          title: { type: "STRING" }, summary: { type: "STRING" },
+          category: { type: "STRING", enum: ["Website", "Games", "AI", "Browser extension", "Other"] }
+        }, required: ["title", "summary", "category"] },
+        temperature: 0.2, maxOutputTokens: 260
+      }}),
+      signal: AbortSignal.timeout(20000)
+    });
+    if (!response.ok) {
+      const detail = await response.text();
+      console.error("Gemini idea summary returned", response.status, detail.slice(0, 300));
+      return res.status(response.status === 429 ? 429 : 502).json({ error: "Could not summarize your idea right now. Please try again later." });
+    }
+    const data = await response.json();
+    const raw = data.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+    let result;
+    try { result = JSON.parse(raw); } catch { return res.status(502).json({ error: "The AI summary could not be processed. Please try again." }); }
+    const categories = ["Website", "Games", "AI", "Browser extension", "Other"];
+    if (typeof result.title !== "string" || typeof result.summary !== "string" || !categories.includes(result.category))
+      return res.status(502).json({ error: "The AI summary was incomplete. Please try again." });
+    const idea = { id: crypto.randomUUID(), title: result.title.trim().slice(0, 120) || title,
+      originalTitle: title, description, summary: result.summary.trim().slice(0, 1200),
+      category: result.category, createdAt: new Date().toISOString() };
+    submittedIdeas.unshift(idea);
+    try { saveIdeas(); } catch (error) {
+      submittedIdeas.shift(); console.error("Could not save feature idea:", error);
+      return res.status(500).json({ error: "Your idea could not be saved. Please try again." });
+    }
+    return res.status(201).json({ ok: true });
+  } catch (error) {
+    console.error("Feature idea submission failed:", error.message);
+    return res.status(502).json({ error: "Could not reach the AI service. Please try again later." });
+  }
+});
+app.get("/admin/ideas", requireAdmin, (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json(submittedIdeas);
+});
+
 const aiRequestBuckets = new Map();
 const AI_WINDOW_MS = 60_000;
 const AI_MAX_REQUESTS = 20;
