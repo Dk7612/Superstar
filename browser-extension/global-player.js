@@ -14,11 +14,11 @@
     :host{all:initial}
     .shell{font:13px/1.45 Arial,sans-serif;color:#f4f6ff;width:min(310px,calc(100vw - 32px));position:relative}
     .launcher{width:46px;height:46px;padding:0;border:0;border-radius:50%;background:transparent;box-shadow:none;display:grid;place-items:center;cursor:pointer;outline-offset:4px}
-    .launcher img{width:100%;height:100%;object-fit:contain;display:block;background:transparent;mix-blend-mode:screen;filter:none;pointer-events:none}
+    .launcher img{width:100%;height:100%;object-fit:contain;display:block;background:transparent;filter:url(#superstar-remove-dark-background);pointer-events:none}
     .menu{position:absolute;left:0;bottom:54px;width:100%;padding:12px;border:1px solid #5365a5;border-radius:16px;background:rgba(13,20,42,.94);backdrop-filter:blur(16px);box-shadow:0 12px 36px #0008;display:flex;flex-direction:column;gap:8px}
     [hidden]{display:none!important}
     .brand{display:flex;align-items:center;gap:9px;padding:2px 3px 8px;border-bottom:1px solid #34466f}
-    .brand img{width:25px;height:25px;object-fit:contain;background:transparent;mix-blend-mode:screen}
+    .brand img{width:25px;height:25px;object-fit:contain;background:transparent;filter:url(#superstar-remove-dark-background)}
     .brand strong{font-size:14px;flex:1}
     .hint{font-size:10px;color:#9eadd6}
     .options{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -47,6 +47,28 @@
     @media(prefers-reduced-motion:no-preference){.option{transition:background .12s,border-color .12s}}
   `;
   root.appendChild(style);
+
+  // Apply alpha transparency to dark pixels baked into the favicon.
+  const logoFilter = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  logoFilter.setAttribute("width", "0");
+  logoFilter.setAttribute("height", "0");
+  logoFilter.style.position = "absolute";
+  const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+  const filter = document.createElementNS("http://www.w3.org/2000/svg", "filter");
+  filter.setAttribute("id", "superstar-remove-dark-background");
+  const matrix = document.createElementNS("http://www.w3.org/2000/svg", "feColorMatrix");
+  matrix.setAttribute("type", "matrix");
+  matrix.setAttribute("values", "1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0.3 0.59 0.11 0 0");
+  const alpha = document.createElementNS("http://www.w3.org/2000/svg", "feComponentTransfer");
+  const alphaFunc = document.createElementNS("http://www.w3.org/2000/svg", "feFuncA");
+  alphaFunc.setAttribute("type", "linear");
+  alphaFunc.setAttribute("slope", "4");
+  alphaFunc.setAttribute("intercept", "-0.15");
+  alpha.appendChild(alphaFunc);
+  filter.append(matrix, alpha);
+  defs.appendChild(filter);
+  logoFilter.appendChild(defs);
+  root.appendChild(logoFilter);
 
   const shell = document.createElement("section");
   shell.className = "shell";
