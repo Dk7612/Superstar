@@ -15,6 +15,7 @@
     .nav{margin-left:auto;display:flex;gap:10px}
     a.navlink{color:#dce4ff;text-decoration:none;padding:10px 14px;border:1px solid #3b4b74;border-radius:9px}
     a.navlink.active{background:#5269c8;border-color:#7186e5;color:white}
+    a.settings-icon{min-width:40px;text-align:center;font-size:19px;padding-inline:10px}
     main{width:min(920px,calc(100% - 28px));margin:34px auto 24px}
     .intro{margin:0 0 18px}.intro h1{font-size:clamp(26px,5vw,36px);margin:0 0 8px}.intro p{color:#aebbdc;margin:0;line-height:1.5}
     .chat{height:min(66vh,680px);min-height:390px;display:flex;flex-direction:column;background:#111a34ef;border:1px solid #34466f;border-radius:18px;overflow:hidden;box-shadow:0 18px 55px #0006}
@@ -46,6 +47,8 @@
       <a class="navlink" href="/">Dashboard</a>
       <a class="navlink active" href="/ai" aria-current="page">AI</a>
       <a class="navlink" href="/games">Games</a>
+      <a class="navlink settings-icon" href="/settings" aria-label="Settings" title="Settings">⚙</a>
+      <a class="navlink" href="/admin" id="adminNavLink" hidden>Admin</a>
     </nav>
   </header>
   <main>
@@ -68,7 +71,7 @@
       function addMessage(role,content){const bubble=document.createElement("div");bubble.className="message "+role;bubble.textContent=content;messagesEl.appendChild(bubble);messagesEl.scrollTop=messagesEl.scrollHeight;return bubble;}
       function showError(message){status.textContent=message;}
       async function initialize(){
-        try{const session=JSON.parse(sessionStorage.getItem("superstar-session")||"null");token=session&&session.sessionToken||"";}catch{}
+        try{const session=JSON.parse(sessionStorage.getItem("superstar-session")||"null");token=session&&session.sessionToken||"";if(session?.role==="admin")document.getElementById("adminNavLink").hidden=false;}catch{}
         if(!token){status.textContent="Please sign in first. Redirecting to the dashboard…";setTimeout(()=>location.replace("/"),900);send.disabled=true;return;}
         try{
           const response=await fetch("/account/permissions",{headers:{Authorization:"Bearer "+token},cache:"no-store"});
