@@ -291,3 +291,6 @@ The following captures the known requests and decisions from the project history
 
 - The main dashboard and Games page periodically validate the signed-in session against the server. If a device/IP ban revokes the session, the affected page redirects to the login screen within approximately five seconds.
 - The dashboard waits for the extension's session-token handoff response before requesting synced extension preferences, avoiding a race on first login.
+
+
+- The optional Gimkit/Blooket helper sends the account's Quick replies preference with each suggestion request; the backend uses it to choose concise or fuller explanations. The helper only suggests an answer and does not click or submit quiz answers.
