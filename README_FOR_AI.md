@@ -250,3 +250,12 @@ The following captures the known requests and decisions from the project history
 - The floating launcher remains hidden unless the stored session token is valid and the server reports the guest's Extension permission enabled. Permission checks are performed against `GET /account/permissions`; the extension does not rely on a page-supplied permission flag.
 - The extension AI chat sends the stored session token to `POST /api/ai/chat`. The server enforces the AI permission with session authentication. The launcher requires a signed-in Superstar account; after first sign-in, reload tabs to initialize the content script.
 - The AI endpoint and game-save endpoints are permission-gated server-side. The existing ban system is unchanged.
+
+
+## Permission enforcement coverage and release notes
+
+- Existing guest accounts are migrated to a snapshot of the current default permissions on first startup, so changing defaults later does not silently change older accounts.
+- Admin accounts always receive all permissions regardless of guest defaults.
+- Guest permissions are checked for the Dashboard, Games page, Extension launcher/toolbar popup, AI Assistant endpoints, and signed-in Feature Ideas page. Anonymous public idea submissions remain public as before.
+- The AI chat and legacy AI answer endpoints require a valid Superstar session and the guest's AI permission. Both extension AI clients attach the session token from extension-local storage.
+- Extension v1.2.3 contains the click-only launcher and permission-aware menu. The star's dark-background alpha filter has a lower threshold to preserve more of the original star artwork.
