@@ -624,7 +624,14 @@ async function loadUsers() {
       codeLabel.textContent = isHidden ? code : "••••••";
       revealButton.textContent = isHidden ? "Hide code" : "Show code";
     });
-    li.append(codeLabel, " ", revealButton, ` - ${user.role} - ${user.lockedDevice||"not locked"} `);
+    li.dataset.search = [code, user.name || "", user.role].join(" ").toLowerCase();
+    const copyButton = document.createElement("button");
+    copyButton.type = "button"; copyButton.textContent = "Copy code";
+    copyButton.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(code); copyButton.textContent = "Copied"; setTimeout(() => copyButton.textContent = "Copy code", 1200); }
+      catch { copyButton.textContent = "Copy unavailable"; }
+    });
+    li.append(codeLabel, " ", revealButton, " ", copyButton, " - " + user.role + " - " + (user.lockedDevice || "not locked") + " ");
     const permissionsButton = document.createElement("button");
     permissionsButton.type = "button"; permissionsButton.textContent = "Permissions";
     permissionsButton.addEventListener("click", () => openUserPermissions(user));
@@ -661,10 +668,12 @@ async function saveUserName(code, name) {
 }
 
 async function resetDevice(code) {
-  await adminFetch("/admin/reset", {
+  if (!confirm("Reset the device lock for this access code?")) return;
+  const response = await adminFetch("/admin/reset", {
     method:"POST", headers:adminHeaders(true),
     body: JSON.stringify({code})
   });
+  if (!response.ok) { alert((await response.json()).error || "Could not reset device."); return; }
   loadUsers();
 }
 
