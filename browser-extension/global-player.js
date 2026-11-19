@@ -82,8 +82,8 @@
   const alpha = document.createElementNS("http://www.w3.org/2000/svg", "feComponentTransfer");
   const alphaFunc = document.createElementNS("http://www.w3.org/2000/svg", "feFuncA");
   alphaFunc.setAttribute("type", "linear");
-  alphaFunc.setAttribute("slope", "2.2");
-  alphaFunc.setAttribute("intercept", "-0.12");
+  alphaFunc.setAttribute("slope", "1.8");
+  alphaFunc.setAttribute("intercept", "-0.01");
   alpha.appendChild(alphaFunc);
   filter.append(matrix, alpha);
   defs.appendChild(filter);
