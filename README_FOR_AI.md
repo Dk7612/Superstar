@@ -242,3 +242,11 @@ The following captures the known requests and decisions from the project history
 - The extension launcher now opens only when the star is clicked. Hover no longer opens it, and clicking the star toggles the menu.
 - The favicon transparency filter was softened to preserve more of the original star colors. Verify the star and background visually in Opera GX on both light and dark pages.
 - Verification still required: `node --check server.js`, `node --check browser-extension/global-player.js`, manifest JSON validation, default inheritance and per-code override tests, Games API 403 test, and manual click-only launcher testing.
+
+
+## Extension account binding and per-guest access
+
+- The authenticated Superstar dashboard sends its current session token only to the extension content bridge on the exact Superstar production origin. The bridge forwards it to the extension service worker, which stores it in extension-local storage.
+- The floating launcher remains hidden unless the stored session token is valid and the server reports the guest's Extension permission enabled. Permission checks are performed against `GET /account/permissions`; the extension does not rely on a page-supplied permission flag.
+- The extension AI chat sends the stored session token to `POST /api/ai/chat`. The server enforces the AI permission with session authentication. The launcher requires a signed-in Superstar account; after first sign-in, reload tabs to initialize the content script.
+- The AI endpoint and game-save endpoints are permission-gated server-side. The existing ban system is unchanged.
