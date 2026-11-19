@@ -97,14 +97,16 @@
     @media(prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto !important; transition-duration:.01ms !important; } .starfield { opacity:.65; } }
   </style>
   <script>
-    try {
-      const session = JSON.parse(sessionStorage.getItem("superstar-session"));
-      if (sessionStorage.getItem("superstar-authenticated") !== "1" ||
-          !session || !["admin", "guest"].includes(session.role) ||
-          typeof session.sessionToken !== "string") window.location.replace("/");
-    } catch {
-      window.location.replace("/");
-    }
+    (async () => {
+      try {
+        const session = JSON.parse(sessionStorage.getItem("superstar-session"));
+        if (sessionStorage.getItem("superstar-authenticated") !== "1" || !session || !["admin", "guest"].includes(session.role) || typeof session.sessionToken !== "string") { window.location.replace("/"); return; }
+        const response = await fetch("/session/me", { headers: { "Authorization": "Bearer " + session.sessionToken }, cache: "no-store" });
+        if (!response.ok) { sessionStorage.removeItem("superstar-session"); sessionStorage.removeItem("superstar-authenticated"); window.location.replace("/"); return; }
+        const data = await response.json();
+        if (data.role === "guest" && data.access?.games === false) document.documentElement.innerHTML = "<head><title>Access disabled | Superstar</title></head><body style='font:16px Arial;padding:40px;background:#101a35;color:white'><h1>Games access disabled</h1><p>The administrator has disabled the Games tab for this guest account.</p><a style='color:#9ce7ff' href='/'>Return to Superstar</a></body>";
+      } catch { window.location.replace("/"); }
+    })();
   </script>
 </head>
 <body>
