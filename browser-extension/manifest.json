@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Superstar Mini Window",
-  "version": "1.2.5",
-  "description": "A minimal Superstar star launcher with quick access to AI, games, and focus tools.",
+  "version": "1.2.6",
+  "description": "Superstar's browser companion: a floating star launcher, AI assistant, games, and focus tools. Built for Chrome; also supports Opera GX.",
+  "minimum_chrome_version": "103",
   "permissions": [
     "storage"
   ],
@@ -14,7 +15,7 @@
     "service_worker": "service-worker.js"
   },
   "action": {
-    "default_title": "Open Superstar AI Helper"
+    "default_title": "Open Superstar Mini Window"
   },
   "content_scripts": [
     {
