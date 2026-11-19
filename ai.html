@@ -37,9 +37,21 @@
     #status{min-height:17px;margin:8px 2px 0;color:#aebbdc;font-size:11px}
     .foot{text-align:center;color:#8392b8;font-size:11px;margin:14px 0}
     @media(max-width:560px){header{height:66px}.brand{font-size:17px}.nav{gap:6px}a.navlink{padding:8px 10px;font-size:12px}main{margin-top:22px}.chat{height:70vh;min-height:360px}.message{max-width:92%}#send{min-width:68px}}
+    :root[data-theme="light"]{color-scheme:light;background:#f3f6ff;color:#202945}
+    :root[data-theme="light"] body{background:linear-gradient(160deg,#f3f6ff,#e5ecfb 55%,#eee9ff)}
+    :root[data-theme="light"] header{background:#ffffffd9;border-color:#d6def0}
+    :root[data-theme="light"] a.navlink{color:#202945;border-color:#cbd5eb}
+    :root[data-theme="light"] a.navlink.active{background:#536bc3;color:#fff}
+    :root[data-theme="light"] .intro p,:root[data-theme="light"] .foot{color:#53617e}
+    :root[data-theme="light"] .chat{background:#fff;border-color:#d6def0;box-shadow:0 18px 55px #30406420}
+    :root[data-theme="light"] .chathead,:root[data-theme="light"] .composer{border-color:#d6def0;background:#f4f7ff}
+    :root[data-theme="light"] .assistant{background:#edf2ff;border-color:#d6def0;color:#202945}
+    :root[data-theme="light"] .welcome{color:#53617e}
+    :root[data-theme="light"] textarea{background:#fff;color:#202945;border-color:#b9c6e1}
   </style>
 </head>
 <body>
+  <script>try{const saved=JSON.parse(localStorage.getItem("superstar-starfield-settings-v2")||"null");if(saved&&["dark","light"].includes(saved.theme))document.documentElement.dataset.theme=saved.theme;}catch{}</script>
   <header>
     <img src="/favicon.png?v=2" alt="">
     <div class="brand">Superstar</div>
