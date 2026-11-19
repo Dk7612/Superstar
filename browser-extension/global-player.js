@@ -27,6 +27,7 @@
     } catch { host.style.display = "none"; }
   }
   checkExtensionAccess();
+  setInterval(checkExtensionAccess, 30000);
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.superstarSessionToken) checkExtensionAccess();
   });
