@@ -172,6 +172,12 @@
     <p class="notice">New guest codes inherit these settings. Existing guests keep their individual settings.</p>
     <div id="defaultGuestAccess"></div>
     <p class="notice" id="guestAccessStatus" role="status"></p>
+    <div id="guestPermissionsModal" hidden role="dialog" aria-modal="true" aria-labelledby="guestPermissionsTitle" style="position:fixed;inset:0;background:#000b;z-index:9999;align-items:center;justify-content:center;padding:18px">
+      <section style="background:#182342;border:1px solid #6475b8;border-radius:14px;padding:20px;width:min(520px,100%);max-height:85vh;overflow:auto">
+        <h2 id="guestPermissionsTitle">Guest permissions</h2><p id="guestPermissionsCode" class="notice"></p>
+        <div id="guestPermissionsEditor"></div><button type="button" id="closeGuestPermissions">Close</button>
+      </section>
+    </div>
     <h2>User List</h2>
     <ul id="userList"></ul>
   </div>
@@ -387,9 +393,8 @@ const GUEST_ACCESS_LABELS = {
   ai: "AI assistant", ideas: "Feature ideas"
 };
 function makeGuestAccessEditor(access, save) {
-  const wrap = document.createElement("details"); wrap.style.cssText = "margin:10px 0;padding:10px;border:1px solid #5365a5;border-radius:9px";
-  const summary = document.createElement("summary"); summary.textContent = "Guest section permissions";
-  const controls = {}, body = document.createElement("div"); body.style.cssText = "display:flex;flex-wrap:wrap;gap:8px;margin-top:10px";
+  const wrap = document.createElement("div"); wrap.style.cssText = "margin:10px 0;padding:10px";
+  const controls = {}, body = document.createElement("div"); body.style.cssText = "display:flex;flex-direction:column;gap:10px;margin-top:10px";
   for (const [key,label] of Object.entries(GUEST_ACCESS_LABELS)) {
     const item = document.createElement("label"); item.style.cssText = "display:inline-flex;gap:5px;align-items:center";
     const input = document.createElement("input"); input.type = "checkbox"; input.checked = access?.[key] !== false; controls[key] = input;
@@ -402,7 +407,7 @@ function makeGuestAccessEditor(access, save) {
     catch (error) { alert(error.message || "Could not save guest access."); button.textContent = "Retry save"; }
     finally { button.disabled = false; }
   });
-  body.appendChild(button); wrap.append(summary,body); return wrap;
+  body.appendChild(button); wrap.append(body); return wrap;
 }
 async function saveDefaultGuestAccess(access) {
   const response = await adminFetch("/admin/guest-access/defaults", { method:"PUT", headers:adminHeaders(true), body:JSON.stringify({access}) });
@@ -427,6 +432,24 @@ async function applyGuestAccess(session) {
   }
   if (access.dashboard === false) document.querySelector(".container").replaceChildren(Object.assign(document.createElement("h2"), { textContent:"Dashboard access disabled by administrator" }));
 }
+function openGuestPermissions(code, access) {
+  const modal = document.getElementById("guestPermissionsModal");
+  document.getElementById("guestPermissionsCode").textContent = "Access code: " + code;
+  const editor = makeGuestAccessEditor(access, async updated => {
+    const response = await adminFetch("/admin/guest-access/" + encodeURIComponent(code), { method:"PUT", headers:adminHeaders(true), body:JSON.stringify({access:updated}) });
+    if (!response.ok) throw new Error((await response.json()).error || "Could not save guest access.");
+    document.getElementById("guestAccessStatus").textContent = "Permissions saved for " + code + ".";
+  });
+  document.getElementById("guestPermissionsEditor").replaceChildren(editor);
+  modal.hidden = false; modal.style.display = "flex";
+}
+function closeGuestPermissions() {
+  const modal = document.getElementById("guestPermissionsModal"); modal.hidden = true; modal.style.display = "none";
+}
+document.getElementById("closeGuestPermissions").addEventListener("click", closeGuestPermissions);
+document.getElementById("guestPermissionsModal").addEventListener("click", event => { if (event.target.id === "guestPermissionsModal") closeGuestPermissions(); });
+document.addEventListener("keydown", event => { if (event.key === "Escape") closeGuestPermissions(); });
+
 function showAuthenticatedDashboard(session, remembered = false) {
   role = session.role;
   adminToken = session.adminToken || "";
@@ -554,20 +577,13 @@ async function loadUsers() {
     saveNameButton.addEventListener("click", () => saveUserName(code, nameInput.value));
     li.append(nameLabel, nameInput, saveNameButton);
     if (user.role === "guest") {
-      const status = document.createElement("button"); status.type = "button";
-      status.textContent = user.disabled ? "Re-enable account" : "Disable account"; status.style.margin = "6px";
-      status.addEventListener("click", async () => {
-        const disabled = !user.disabled;
-        if (!confirm(disabled ? "Disable this guest now? Their active sessions will be revoked." : "Re-enable this guest account?")) return;
-        const response = await adminFetch("/admin/guest-access/" + encodeURIComponent(code) + "/status", { method:"PUT", headers:adminHeaders(true), body:JSON.stringify({disabled}) });
-        if (!response.ok) return alert((await response.json()).error || "Could not update account status.");
-        loadUsers();
-      });
-      const editor = makeGuestAccessEditor(user.access, async access => {
-        const response = await adminFetch("/admin/guest-access/" + encodeURIComponent(code), { method:"PUT", headers:adminHeaders(true), body:JSON.stringify({access}) });
-        if (!response.ok) throw new Error((await response.json()).error || "Could not save guest access.");
-      });
-      li.append(document.createTextNode(user.disabled ? " · DISABLED " : " · ENABLED "), status, editor);
+      const permissionsButton = document.createElement("button");
+      permissionsButton.type = "button";
+      permissionsButton.className = "reset";
+      permissionsButton.textContent = "Permissions";
+      permissionsButton.setAttribute("aria-label", "Manage permissions for access code " + code);
+      permissionsButton.addEventListener("click", () => openGuestPermissions(code, user.access));
+      li.appendChild(permissionsButton);
     }
     list.appendChild(li);
   }
