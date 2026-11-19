@@ -409,6 +409,7 @@ document.getElementById("generateCodeForm").addEventListener("submit", event => 
 function showAuthenticatedDashboard(session, remembered = false) {
   role = session.role;
   adminToken = session.adminToken || "";
+  window.postMessage({ source: "superstar-site", type: "SET_SESSION", sessionToken: session.sessionToken }, window.location.origin);
   document.getElementById("siteIcon").href = "/favicon.png?v=2";
   document.body.classList.remove("logged-out");
   document.body.classList.add("authenticated");
