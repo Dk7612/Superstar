@@ -26,11 +26,6 @@
       if (websiteOption) websiteOption.hidden = permissions.dashboard !== true;
     } catch { host.style.display = "none"; }
   }
-  checkExtensionAccess();
-  setInterval(checkExtensionAccess, 30000);
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === "local" && changes.superstarSessionToken) checkExtensionAccess();
-  });
   const root = host.attachShadow({ mode: "closed" });
 
   const style = document.createElement("style");
@@ -123,6 +118,13 @@
   const viewbody = root.getElementById("viewbody");
   const viewtitle = root.getElementById("viewtitle");
   const launcher = root.getElementById("launcher");
+  // Start permission checks only after the Shadow DOM and menu elements exist.
+  // Calling this earlier hit the temporal dead zone for `root`, causing the catch block to hide the launcher permanently.
+  checkExtensionAccess();
+  setInterval(checkExtensionAccess, 30000);
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.superstarSessionToken) checkExtensionAccess();
+  });
   const history = [];
   let open = false;
   let activeView = null;
