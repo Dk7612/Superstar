@@ -240,7 +240,7 @@ The following captures the known requests and decisions from the project history
 - Permission settings are persisted in `DATA_DIR/service-data.json`. Existing guest codes default to full access for backwards compatibility. Admin access and the existing ban system remain unchanged.
 - The game-save API checks the guest's Games permission server-side; this is not just a hidden navigation link.
 - The extension launcher now opens only when the star is clicked. Hover no longer opens it, and clicking the star toggles the menu.
-- The favicon transparency filter was softened to preserve more of the original star colors. Verify the star and background visually in Opera GX on both light and dark pages.
+- The favicon transparency filter uses a low luminance threshold to retain darker star colors while suppressing the dark navy tile. Verify the star and background visually in Opera GX on both light and dark pages.
 - Verification still required: `node --check server.js`, `node --check browser-extension/global-player.js`, manifest JSON validation, default inheritance and per-code override tests, Games API 403 test, and manual click-only launcher testing.
 
 
