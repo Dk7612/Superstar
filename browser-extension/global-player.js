@@ -239,7 +239,7 @@
     preview.style.cssText = "display:none;width:100%;max-height:190px;object-fit:contain;border:1px solid #465780;border-radius:9px;background:#080f22";
     const clearShot = element("button", "secondary", "Remove screenshot"); clearShot.type = "button"; clearShot.hidden = true;
     let screenshotDataUrl = "";
-    let autoObserver = null, autoDebounce = null, autoEnabled = false, autoRunning = false, lastAutoFingerprint = "", lastAutoCaptureAt = 0;
+    let autoObserver = null, autoDebounce = null, autoPollInterval = null, autoEnabled = false, autoRunning = false, lastAutoFingerprint = "", lastAutoCaptureAt = 0;
     let disposed = false;
     const status = element("p", "status", "Capture the question area, or enable Auto Fast Answer.");
     const answer = element("div", "bubble assistant", "Your suggestion will appear here."); answer.setAttribute("aria-live", "polite");
@@ -318,7 +318,7 @@
     }
 
     async function autoCheck() {
-      if (!autoEnabled || disposed || autoRunning || waiting || Date.now() - lastAutoCaptureAt < 2800) return;
+      if (!autoEnabled || disposed || document.visibilityState !== "visible" || autoRunning || waiting || Date.now() - lastAutoCaptureAt < 2800) return;
       autoRunning = true; lastAutoCaptureAt = Date.now();
       try {
         const shot = await captureVisibleQuestion();
@@ -340,12 +340,13 @@
     function stopAuto() {
       autoEnabled = false;
       if (autoObserver) autoObserver.disconnect();
-      autoObserver = null; clearTimeout(autoDebounce); autoDebounce = null;
+      autoObserver = null; clearTimeout(autoDebounce); autoDebounce = null; if (autoPollInterval) clearInterval(autoPollInterval); autoPollInterval = null;
     }
     function startAuto() {
       stopAuto(); autoEnabled = true; lastAutoFingerprint = "";
       autoObserver = new MutationObserver(scheduleAutoCheck);
       if (document.body) autoObserver.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
+      autoPollInterval = setInterval(scheduleAutoCheck, 1800);
       status.textContent = "Auto Fast Answer is on. Waiting for a question…"; scheduleAutoCheck();
     }
 
