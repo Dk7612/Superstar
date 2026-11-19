@@ -43,6 +43,8 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/chrome-package"
           cp -R browser-extension "$RUNNER_TEMP/chrome-package/browser-extension"
+          # Chrome Web Store manages updates itself; omit the self-hosted Opera update URL from the Chrome package.
+          node -e "const fs=require('fs'); const p='$RUNNER_TEMP/chrome-package/browser-extension/manifest.json'; const m=JSON.parse(fs.readFileSync(p,'utf8')); delete m.update_url; fs.writeFileSync(p, JSON.stringify(m,null,2)+'\\n');"
           cd "$RUNNER_TEMP/chrome-package"
           zip -qr "$RUNNER_TEMP/Superstar-Chrome.zip" browser-extension
           test -s "$RUNNER_TEMP/Superstar-Chrome.zip"
