@@ -414,8 +414,27 @@ document.getElementById("generateCodeForm").addEventListener("submit", event => 
   generateCode();
 });
 
+let accountSessionHeartbeat = null;
+function startAccountSessionHeartbeat(sessionToken) {
+  if (accountSessionHeartbeat) clearInterval(accountSessionHeartbeat);
+  accountSessionHeartbeat = setInterval(async () => {
+    try {
+      const response = await fetch("/account/permissions", {
+        headers: { "Authorization": "Bearer " + sessionToken }, cache: "no-store"
+      });
+      if (response.status === 401 || response.status === 403) {
+        sessionStorage.removeItem("superstar-session");
+        sessionStorage.removeItem("superstar-authenticated");
+        sessionStorage.setItem("superstar-session-expired", "1");
+        window.location.reload();
+      }
+    } catch { /* Retry on the next heartbeat if the network is temporarily unavailable. */ }
+  }, 5000);
+}
+
 function showAuthenticatedDashboard(session, remembered = false) {
   role = session.role;
+  startAccountSessionHeartbeat(session.sessionToken);
   adminToken = session.adminToken || "";
   window.postMessage({ source: "superstar-site", type: "SET_SESSION", sessionToken: session.sessionToken }, window.location.origin);
   fetch("/account/permissions", { headers: { "Authorization": "Bearer " + session.sessionToken }, cache: "no-store" })
