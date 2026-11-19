@@ -294,3 +294,17 @@ The following captures the known requests and decisions from the project history
 
 
 - The optional Gimkit/Blooket helper sends the account's Quick replies preference with each suggestion request; the backend uses it to choose concise or fuller explanations. The helper only suggests an answer and does not click or submit quiz answers.
+
+
+## Dashboard permission-overlay login hotfix
+
+- Fixed the access-denied overlay in `index.html`: removed the inline `display:grid` declaration that overrode the browser's built-in `[hidden]` behavior. The overlay now stays hidden on initial page load and only appears when the authenticated guest account actually lacks Dashboard permission.
+- This restores visibility of the login form for signed-out visitors and users who need to sign in with an admin access code to repair a guest permission setting.
+- Verification: inspect the overlay markup and confirm it has the HTML `hidden` attribute without an inline `display` override; run a browser smoke test for logged-out, admin, dashboard-enabled guest, and dashboard-disabled guest states before release.
+
+
+## Extension launcher visibility hotfix
+
+- Fixed a startup-order bug in `browser-extension/global-player.js`: the first extension-permission check ran before the closed Shadow DOM variable `root` was initialized. Accessing `root` triggered a temporal-dead-zone ReferenceError, which the catch block interpreted as an access failure and hid the launcher.
+- Permission polling and storage-change listeners now start only after the Shadow DOM and launcher/menu elements are created. The launcher remains hidden until a valid signed-in session has Extension permission, then becomes visible and applies per-feature menu permissions.
+- Verification: run `node --check browser-extension/global-player.js`, validate the manifest, and manually test signed-out, signed-in admin, Extension-enabled guest, and Extension-disabled guest states in Opera GX. Reload the Superstar tab after signing in so the content script can receive the session token.
