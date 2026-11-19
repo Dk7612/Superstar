@@ -14,11 +14,11 @@
     :host{all:initial}
     .shell{font:13px/1.45 Arial,sans-serif;color:#f4f6ff;width:min(310px,calc(100vw - 32px));position:relative}
     .launcher{width:46px;height:46px;padding:0;border:0;border-radius:50%;background:transparent;box-shadow:none;display:grid;place-items:center;cursor:pointer;outline-offset:4px}
-    .launcher img{width:100%;height:100%;object-fit:contain;display:block;filter:drop-shadow(0 2px 5px #0008)}
+    .launcher img{width:100%;height:100%;object-fit:contain;display:block;background:transparent;mix-blend-mode:screen;filter:none;pointer-events:none}
     .menu{position:absolute;left:0;bottom:54px;width:100%;padding:12px;border:1px solid #5365a5;border-radius:16px;background:rgba(13,20,42,.94);backdrop-filter:blur(16px);box-shadow:0 12px 36px #0008;display:flex;flex-direction:column;gap:8px}
     [hidden]{display:none!important}
     .brand{display:flex;align-items:center;gap:9px;padding:2px 3px 8px;border-bottom:1px solid #34466f}
-    .brand img{width:25px;height:25px;object-fit:contain}
+    .brand img{width:25px;height:25px;object-fit:contain;background:transparent;mix-blend-mode:screen}
     .brand strong{font-size:14px;flex:1}
     .hint{font-size:10px;color:#9eadd6}
     .options{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -83,6 +83,8 @@
   let focusSeconds = 25 * 60;
   let gameFrame = 0;
   let gameKeyHandler = null;
+  let dismissTimer = null;
+  let pointerInside = false;
 
   function stopGame() {
     if (gameFrame) cancelAnimationFrame(gameFrame);
@@ -91,11 +93,27 @@
     gameKeyHandler = null;
   }
   function clearFocusTimer() { if (focusInterval) clearInterval(focusInterval); focusInterval = null; }
+  function cancelDismiss() {
+    pointerInside = true;
+    if (dismissTimer) clearTimeout(dismissTimer);
+    dismissTimer = null;
+  }
+  function scheduleDismiss() {
+    pointerInside = false;
+    if (dismissTimer) clearTimeout(dismissTimer);
+    dismissTimer = setTimeout(() => {
+      dismissTimer = null;
+      if (!pointerInside && !shell.contains(root.activeElement)) hideMenu();
+    }, 1000);
+  }
   function showMenu() {
     open = true; menu.hidden = false; view.hidden = true;
     launcher.setAttribute("aria-expanded", "true");
   }
   function hideMenu() {
+    if (dismissTimer) clearTimeout(dismissTimer);
+    dismissTimer = null;
+    pointerInside = false;
     open = false; menu.hidden = true; view.hidden = true;
     stopGame();
     launcher.setAttribute("aria-expanded", "false");
@@ -202,11 +220,24 @@
   }
   function formatTime(s){return Math.floor(s/60).toString().padStart(2,"0")+":"+Math.floor(s%60).toString().padStart(2,"0");}
 
-  launcher.addEventListener("mouseenter",showMenu);
+  launcher.addEventListener("pointerenter", e => {
+    if (e.pointerType === "mouse") { cancelDismiss(); showMenu(); }
+  });
+  launcher.addEventListener("pointerleave", e => {
+    if (e.pointerType === "mouse") scheduleDismiss();
+  });
   launcher.addEventListener("click",()=>{if(!open)showMenu();});
-  shell.addEventListener("mouseenter",()=>{});
-  shell.addEventListener("mouseleave",hideMenu);
-  shell.addEventListener("focusout",e=>{if(!shell.contains(e.relatedTarget))hideMenu();});
+  for (const surface of [menu, view]) {
+    surface.addEventListener("pointerenter", e => {
+      if (e.pointerType === "mouse") cancelDismiss();
+    });
+    surface.addEventListener("pointerleave", e => {
+      if (e.pointerType === "mouse") scheduleDismiss();
+    });
+  }
+  shell.addEventListener("focusout", e => {
+    if (!shell.contains(e.relatedTarget)) scheduleDismiss();
+  });
   root.getElementById("options").addEventListener("click",e=>{
     const button=e.target.closest("[data-view]"); if(!button)return;
     const name=button.dataset.view;
