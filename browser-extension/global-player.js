@@ -105,8 +105,6 @@
   let focusSeconds = 25 * 60;
   let gameFrame = 0;
   let gameKeyHandler = null;
-  let dismissTimer = null;
-  let pointerInside = false;
 
   function stopGame() {
     if (gameFrame) cancelAnimationFrame(gameFrame);
@@ -115,27 +113,11 @@
     gameKeyHandler = null;
   }
   function clearFocusTimer() { if (focusInterval) clearInterval(focusInterval); focusInterval = null; }
-  function cancelDismiss() {
-    pointerInside = true;
-    if (dismissTimer) clearTimeout(dismissTimer);
-    dismissTimer = null;
-  }
-  function scheduleDismiss() {
-    pointerInside = false;
-    if (dismissTimer) clearTimeout(dismissTimer);
-    dismissTimer = setTimeout(() => {
-      dismissTimer = null;
-      if (!pointerInside && !shell.contains(root.activeElement)) hideMenu();
-    }, 1000);
-  }
   function showMenu() {
     open = true; shell.classList.add("open"); menu.hidden = false; view.hidden = true;
     launcher.setAttribute("aria-expanded", "true");
   }
   function hideMenu() {
-    if (dismissTimer) clearTimeout(dismissTimer);
-    dismissTimer = null;
-    pointerInside = false;
     open = false; shell.classList.remove("open"); menu.hidden = true; view.hidden = true;
     stopGame();
     launcher.setAttribute("aria-expanded", "false");
@@ -243,23 +225,13 @@
   function formatTime(s){return Math.floor(s/60).toString().padStart(2,"0")+":"+Math.floor(s%60).toString().padStart(2,"0");}
 
   launcher.addEventListener("pointerenter", e => {
-    if (e.pointerType === "mouse") { cancelDismiss(); showMenu(); }
-  });
-  launcher.addEventListener("pointerleave", e => {
-    if (e.pointerType === "mouse") scheduleDismiss();
+    if (e.pointerType === "mouse") showMenu();
   });
   launcher.addEventListener("click",()=>{if(!open)showMenu();});
-  for (const surface of [menu, view]) {
-    surface.addEventListener("pointerenter", e => {
-      if (e.pointerType === "mouse") cancelDismiss();
-    });
-    surface.addEventListener("pointerleave", e => {
-      if (e.pointerType === "mouse") scheduleDismiss();
-    });
-  }
-  shell.addEventListener("focusout", e => {
-    if (!shell.contains(e.relatedTarget) && !pointerInside) scheduleDismiss();
-  });
+  // Keep the menu open while the pointer moves away; dismiss only on an outside click.
+  document.addEventListener("click", e => {
+    if (open && !e.composedPath().includes(host)) hideMenu();
+  }, true);
   root.getElementById("options").addEventListener("click",e=>{
     const button=e.target.closest("[data-view]"); if(!button)return;
     const name=button.dataset.view;
