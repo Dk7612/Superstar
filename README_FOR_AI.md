@@ -186,3 +186,10 @@ The following captures the known requests and decisions from the project history
 - Bumped `browser-extension/manifest.json` to 1.2.0. Keep the existing persistent CRX signing key unchanged for future signed releases.
 - Verification checklist: parse manifest JSON; run `node --check browser-extension/global-player.js`; manually load/reload the extension in Opera GX; verify idle state shows only the transparent star; hover opens the menu; moving the pointer away closes it; test AI multi-turn chat, Flappy Bird pointer/Space/restart, focus timer continuing after the menu hides, and Full website navigation. Verify the website's complete Games page remains unchanged.
 - Do not claim the change is live until this branch is merged and the Render/extension publishing workflows have succeeded.
+
+## Extension v1.2.0 startup hotfix — escaped template literals
+
+- Fixed a release-blocking JavaScript syntax error in `browser-extension/global-player.js`: template-literal delimiters for the injected stylesheet and menu markup were incorrectly written with preceding backslashes (`\\``), which made the content script fail to parse before creating the launcher.
+- Restored ordinary JavaScript backtick delimiters in both template literals. No launcher behavior, permissions, or host-page access was changed.
+- Regression verification: run `node --check browser-extension/global-player.js` and inspect the published extension package before release. The same syntax error can affect every tab because the same content script is injected into each matching page.
+- Bump the extension version and publish a newly signed CRX using the existing persistent signing key; do not change the extension identity.
