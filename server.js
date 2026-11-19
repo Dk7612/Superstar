@@ -1067,7 +1067,16 @@ app.post("/api/ai/answer", requireFeaturePermission("ai"), async (req, res) => {
     }
 
     const answer = typeof result.answer === "string" ? result.answer.trim() : "";
-    const matchedChoice = choices.find(choice => choice.toLowerCase() === answer.toLowerCase());
+    const normalizeAnswer = value => value.toLowerCase().replace(/^\\s*(?:option\\s*)?[a-h1-8][.)\\]:-]\\s*/i, "").replace(/[^\\p{L}\\p{N}]+/gu, " ").trim();
+    const normalizedAnswer = normalizeAnswer(answer);
+    let matchedChoice = choices.find(choice => choice.toLowerCase() === answer.toLowerCase())
+      || choices.find(choice => normalizeAnswer(choice) === normalizedAnswer)
+      || choices.find(choice => normalizedAnswer.length >= 4 && (normalizeAnswer(choice).includes(normalizedAnswer) || normalizedAnswer.includes(normalizeAnswer(choice))));
+    if (!matchedChoice) {
+      const letter = answer.match(/^\\s*(?:option\\s*)?([a-h])(?:[.)\\]:-]|\\s|$)/i)?.[1]?.toUpperCase();
+      const index = letter ? letter.charCodeAt(0) - 65 : Number(answer.match(/^\\s*([1-8])(?:[.)\\]:-]|\\s|$)/)?.[1]) - 1;
+      if (Number.isInteger(index) && index >= 0 && index < choices.length) matchedChoice = choices[index];
+    }
     res.json({
       answer: matchedChoice || "",
       explanation: typeof result.explanation === "string" ? result.explanation.slice(0, 500) : "",
