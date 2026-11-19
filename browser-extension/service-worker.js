@@ -7,6 +7,16 @@ async function getMode() {
 }
 
 async function openMiniWindow() {
+  const stored = await chrome.storage.local.get("superstarSessionToken");
+  const token = stored.superstarSessionToken || "";
+  if (!token) return;
+  const permissionResponse = await fetch(SITE_URL + "account/permissions", {
+    headers: { "Authorization": "Bearer " + token },
+    cache: "no-store"
+  });
+  if (!permissionResponse.ok) return;
+  const permissions = await permissionResponse.json();
+  if (permissions.extension !== true) return;
   const mode = await getMode();
   const url = mode === "full-site"
     ? SITE_URL
