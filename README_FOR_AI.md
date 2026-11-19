@@ -160,3 +160,14 @@ The following captures the known requests and decisions from the project history
 - The legacy `/api/ai/answer` endpoint and helper page remain available for compatibility; the global launcher now uses only the conversational endpoint.
 - Bumped the extension version to 1.1.2 so the signed-release workflow can publish the update. Keep the persistent extension signing key unchanged.
 - Verification: run `node --check server.js` and `node --check browser-extension/global-player.js`; validate `browser-extension/manifest.json`; exercise chat with multi-turn messages, empty input, rate limiting, provider errors, and mobile-width layout. Do not claim the live extension changed until the branch is merged and the extension release workflow succeeds.
+
+
+## Public feature suggestions and private admin idea inbox
+
+- The main dashboard footer links to the public \`/ideas\` submission page. Visitors submit a title and description; the page does not expose stored submissions.
+- \`POST /api/ideas\` validates lengths, limits each IP to five submissions per hour, and asks Gemini 2.5 Flash for a short title, concise actionable summary, and fixed category.
+- The original title and description are retained beside the AI summary. Gemini output is schema-constrained and validated before storage.
+- Ideas are atomically saved to \`DATA_DIR/ideas.json\` (default local \`data/\`). On Render, \`DATA_DIR\` must point to a mounted persistent disk path or submissions may be lost on restart/redeploy. Submissions are not committed to Git.
+- \`GET /admin/ideas\` is protected by \`requireAdmin\`; the inbox appears only in the authenticated admin dashboard. It displays summaries, category, date, and original text, using \`textContent\` to avoid HTML injection.
+- Admins can copy the summary and original submission to bring selected ideas into a ChatGPT conversation. There is no public read endpoint.
+- Verification: syntax-check \`server.js\`; validate the ideas page script; test valid/invalid/oversized submissions, Gemini failures, rate limits, public 403 access to \`/admin/ideas\`, admin access, and persistence across restarts on the configured Render disk.
