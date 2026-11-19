@@ -125,11 +125,6 @@
   directionSelect.addEventListener("change", applySettings);
   speedSelect.addEventListener("change", applySettings);
   themeSelect.addEventListener("change", applySettings);
-  for (const select of [directionSelect, speedSelect, themeSelect]) {
-    select.addEventListener("change", () => {
-      select.closest(".star-settings").open = false;
-    });
-  }
   document.addEventListener("pointerdown", event => {
     const settings = document.querySelector(".star-settings[open]");
     if (settings && !settings.contains(event.target)) settings.open = false;
