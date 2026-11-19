@@ -201,7 +201,7 @@ function loadPersistentState() {
     };
   } catch (error) {
     if (error.code === "ENOENT") {
-      return { loginHistory: [], bannedDevices: new Set(), bannedIps: new Set(), generatedUsers: Object.create(null), generatedUserOrder: [], lockedDevices: [], gameSaves: Object.create(null), accountNames: Object.create(null), guestPermissions: Object.create(null), defaultGuestPermissions: { ...ALL_GUEST_PERMISSIONS }, trustedAdminDevices: [], authSessions: [] };
+      return { loginHistory: [], bannedDevices: new Set(), bannedIps: new Set(), generatedUsers: Object.create(null), generatedUserOrder: [], lockedDevices: [], gameSaves: Object.create(null), accountNames: Object.create(null), extensionPreferences: Object.create(null), guestPermissions: Object.create(null), defaultGuestPermissions: { ...ALL_GUEST_PERMISSIONS }, trustedAdminDevices: [], authSessions: [] };
     }
     throw error;
   }
