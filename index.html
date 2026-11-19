@@ -125,6 +125,7 @@
         </label>
       </div>
     </details>
+    <a href="/ai"><button class="games-nav-button" type="button">AI</button></a>
     <a href="/games"><button class="games-nav-button" type="button">Games</button></a>
   </div>
 </nav>
@@ -156,7 +157,7 @@
         <option value="ai-helper">AI Helper</option>
         <option value="full-site">Full Superstar Website</option>
       </select>
-      <label class="preference-toggle"><input id="quickReplyPreference" type="checkbox" checked> Quick replies (shorter AI responses)</label>
+      <label class="preference-toggle"><input id="quickReplyPreference" type="checkbox" checked> Concise quiz answers (question helper only)</label>
       <button id="saveMiniWindowMode" type="button">Save preference</button>
       <button id="openMiniWindow" class="generate" type="button">Open Superstar Mini Window</button>
     </div>
@@ -446,6 +447,8 @@ function showAuthenticatedDashboard(session, remembered = false) {
       } else {
         const gamesLink = document.querySelector('a[href="/games"]');
         if (gamesLink) gamesLink.hidden = permissions.games === false;
+        const aiLink = document.querySelector('a[href="/ai"]');
+        if (aiLink) aiLink.hidden = permissions.ai === false;
         const extensionSettings = document.getElementById("miniWindowSettings");
         if (extensionSettings) extensionSettings.hidden = permissions.extension === false;
         const ideasLink = document.querySelector('a[href="/ideas"]');
