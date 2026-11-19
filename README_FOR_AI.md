@@ -265,7 +265,7 @@ The following captures the known requests and decisions from the project history
 
 - Extension settings live in `chrome.storage.local` and sync to the signed-in Superstar account through `GET/PUT /account/extension-preferences`. The server stores them in `service-data.json`, alongside access codes, bans, permissions, and game progress, so a future app can reuse the same account preferences.
 - Only accounts with the **Extension** permission can read or write extension preferences. The dashboard saves settings only when the extension responds; if the extension is not installed/connected, the preference controls remain unavailable. Disabling Extension permission blocks preference sync server-side.
-- Preferences currently include mini-window mode and a quick-reply setting (default on).
+- Preferences include mini-window mode and a concise quiz-answer setting (default on). Quick Reply is only applied to quiz-question suggestions; general AI chat remains normally conversational.
 - Authentication sessions now retain originating device ID and IP. Adding a device/IP ban revokes matching active sessions; subsequent authenticated requests also check the ban list. Older sessions fall back to their latest login record.
 - The admin dashboard polls login history while open so new logins appear without manual refresh.
 - Admin storage status displays the active `DATA_DIR` and whether the environment variable is configured. This does not prove a Render disk is attached: Render must mount a persistent disk at that exact path. Without that, access codes, bans, preferences, game progress, and ideas can be lost when the instance is replaced.
@@ -283,8 +283,9 @@ The following captures the known requests and decisions from the project history
 
 ## Quick-reply preference behavior
 
-- The saved Quick replies preference is passed to the conversational AI endpoint. When enabled, Superstar AI is instructed to keep responses brief and direct; when disabled, it can provide fuller explanations.
-- The extension's mini-window mode and Quick replies preference are synchronized to the account and retained in local extension storage.
+- The saved Quick replies preference is used only by the quiz-question answer endpoint (`POST /api/ai/answer`). When enabled, question explanations are concise; when disabled, they can teach the reasoning in more detail.
+- General conversational AI (`POST /api/ai/chat`) ignores this setting and answers naturally with appropriate detail. The extension chat and website AI tab do not send a Quick Reply flag.
+- The extension's mini-window mode and quiz Quick Reply preference are synchronized to the account and retained in local extension storage.
 
 
 ## Client-side ban session refresh
@@ -354,3 +355,30 @@ The following captures the known requests and decisions from the project history
 - The screenshot is captured with the Superstar overlay hidden. Gemini is instructed to read only the question and answer choices. The answer is shown in the helper; the extension does not click, select, type into, or submit any game answer.
 - Leaving the Question Helper stops its observer. Turning the toggle off stops automatic capture immediately.
 - Verification: run syntax checks for `global-player.js` and `service-worker.js`, parse manifest JSON, then manually test toggle persistence, question-change detection, duplicate suppression, manual capture, and disabled mode on Gimkit and Blooket.
+
+
+## Website AI tab and quiz-only Quick Reply scope
+
+- The authenticated website navigation includes an **AI** tab at `/ai`. It provides a full-page, multi-turn Superstar AI chat using the existing authenticated `POST /api/ai/chat` endpoint and server-side Gemini key.
+- The AI page reads the current same-tab Superstar session from sessionStorage, checks `GET /account/permissions`, and requires the account AI permission. It redirects signed-out visitors to the dashboard and displays an access-denied state when AI permission is disabled.
+- The dashboard hides the AI navigation link when the signed-in account lacks AI permission. Server-side endpoint permission checks remain authoritative.
+- Quick Reply is strictly a quiz-answer preference. It affects `POST /api/ai/answer` requests from the Gimkit/Blooket helper and standalone question helper only. It must never shorten general conversational chat in either the extension or website AI tab.
+- Verification: run `node --check server.js`, `node --check browser-extension/global-player.js`, and `node --check browser-extension/helper.js`; parse inline dashboard JavaScript; manually test signed-in AI chat, signed-out redirect, AI-disabled guest, and both Quick Reply settings on quiz answers while confirming ordinary chat remains naturally detailed.
+
+
+## Dashboard settings, admin console, and performance refresh
+
+- Home is a focused dashboard with feature cards and quick links. Appearance, theme, starfield, extension mini-window, quiz Quick Reply, and trusted-device preferences are grouped under the gear-icon **Settings** tab.
+- The **Admin** tab is revealed only after a verified admin session. Sub-sections group access-code generation and per-code permissions, login activity, bans/security, and the private feature-idea inbox. Admin APIs must continue enforcing admin authorization server-side; hiding navigation is only presentation.
+- Guest accounts cannot open Admin. Never expose admin tokens or access-code data in public page state. Keep codes masked until the owner explicitly reveals them.
+- Session heartbeat is reduced from every 5 seconds to every 30 seconds. Admin login polling runs every 15 seconds only while Admin > Login activity is open and the browser tab is visible.
+- Starfield rendering is capped at 90 particles and 1.5x device pixel ratio, capped near 30 FPS, and paused while the tab is hidden or reduced motion is enabled.
+- Verification: parse inline JavaScript; test logged-out, guest, and admin navigation; verify direct admin APIs remain protected; test settings persistence, mobile widths, and CPU/GPU with the tab visible and hidden.
+
+
+## Extension v1.3.0 — website AI and dashboard refresh
+
+- Publishes the website AI tab, quiz-only Quick Reply behavior, refreshed dashboard navigation, gear-icon Settings workspace, dedicated admin console, and lighter starfield/session polling behavior.
+- Extension manifest version is 1.3.0 so the signed Opera release workflow can publish a new CRX/update feed rather than reusing the v1.2.9 release tag.
+- Chrome ZIP users still need to replace/reload their unpacked or Developer Mode installation manually unless Superstar is published through the Chrome Web Store. Opera signed CRX users can receive updates through the existing update feed.
+- Validation: parse the manifest JSON and syntax-check changed extension scripts before publishing; browser and live-site regression checks remain necessary.
