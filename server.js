@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const fs = require("fs");
 const net = require("net");
 const path = require("path");
+const githubStorage = require("./github-storage");
 const express = require("express");
 const cors = require("cors");
 
@@ -9,6 +10,7 @@ const app = express();
 app.set("trust proxy", 1);
 app.use(cors());
 app.use(express.json());
+githubStorage.attachResponseFlush(app);
 app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "index.html")));
 app.get("/games", (_req, res) => res.sendFile(path.join(__dirname, "games.html")));
 app.get("/starfield.js", (_req, res) => res.sendFile(path.join(__dirname, "starfield.js")));
@@ -207,7 +209,9 @@ function loadPersistentState() {
   }
 }
 
-const persistentState = loadPersistentState();
+async function startServer() {
+  const remoteStorage = await githubStorage.initialize(dataDirectory);
+  const persistentState = loadPersistentState();
 const generatedUserOrder = persistentState.generatedUserOrder.filter(code => code !== userCode);
 for (const code of generatedUserOrder) {
   const role = persistentState.generatedUsers[code];
@@ -259,6 +263,11 @@ function savePersistentState() {
     }))
   }, null, 2), { encoding: "utf8", mode: 0o600 });
   fs.renameSync(temporaryFile, dataFile);
+  githubStorage.persist(dataFile, "service-data.json");
+}
+if (!remoteStorage.serviceDataInitialized) {
+  savePersistentState();
+  await githubStorage.flush();
 }
 
 function normalizeIp(ip) {
@@ -401,9 +410,13 @@ app.get("/admin/storage-status", requireAdmin, (_req, res) => {
   res.json({
     dataDirectory,
     dataDirectoryEnvironmentConfigured: Boolean(process.env.DATA_DIR),
-    note: process.env.DATA_DIR
-      ? "DATA_DIR is set. Confirm that this exact path is mounted as a persistent Render disk."
-      : "DATA_DIR is not set; the default app directory may be ephemeral across redeploys."
+    githubStorageConfigured: githubStorage.enabled,
+    githubDataRepository: githubStorage.enabled ? process.env.GITHUB_DATA_REPO : null,
+    note: githubStorage.enabled
+      ? "Persistent data is restored from and written to the configured private GitHub repository."
+      : process.env.DATA_DIR
+        ? "DATA_DIR is set. Confirm that this exact path is mounted as a persistent Render disk."
+        : "Neither GitHub-backed storage nor DATA_DIR is configured; local data may be temporary across redeploys."
   });
 });
 
@@ -840,6 +853,11 @@ function saveIdeas() {
   const tmp = ideasFile + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(submittedIdeas, null, 2), { encoding: "utf8", mode: 0o600 });
   fs.renameSync(tmp, ideasFile);
+  githubStorage.persist(ideasFile, "ideas.json");
+}
+if (!remoteStorage.ideasInitialized) {
+  saveIdeas();
+  await githubStorage.flush();
 }
 const ideaBuckets = new Map();
 app.post("/api/ideas", async (req, res) => {
@@ -1081,3 +1099,9 @@ app.post("/api/ai/answer", requireFeaturePermission("ai"), async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+}
+
+startServer().catch(error => {
+  console.error("Superstar startup failed:", error.message);
+  process.exitCode = 1;
+});

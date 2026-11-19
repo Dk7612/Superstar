@@ -545,10 +545,12 @@ async function loadStorageStatus() {
     const response = await adminFetch("/admin/storage-status", { headers: adminHeaders() });
     if (!response.ok) throw new Error("Could not read storage status.");
     const data = await response.json();
-    element.textContent = data.dataDirectoryEnvironmentConfigured
-      ? "DATA_DIR is set to " + data.dataDirectory + ". Confirm that your Render persistent disk is mounted at this exact path before redeploying."
-      : "WARNING: DATA_DIR is not set. The default data folder may be temporary, so access codes, bans, and game progress could be lost on redeploy. Configure a Render persistent disk before redeploying.";
-    element.style.color = data.dataDirectoryEnvironmentConfigured ? "" : "#ff9b78";
+    element.textContent = data.githubStorageConfigured
+      ? "Persistent storage is backed up to the private GitHub repository " + data.githubDataRepository + ". A Render persistent disk is not required."
+      : data.dataDirectoryEnvironmentConfigured
+        ? "DATA_DIR is set to " + data.dataDirectory + ". Confirm that your Render persistent disk is mounted at this exact path before redeploying."
+        : "WARNING: DATA_DIR is not set and GitHub storage is not configured. Access codes, bans, and game progress could be lost on redeploy.";
+    element.style.color = data.githubStorageConfigured || data.dataDirectoryEnvironmentConfigured ? "" : "#ff9b78";
   } catch (error) { element.textContent = error.message || "Could not check storage configuration."; }
 }
 
