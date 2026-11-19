@@ -259,3 +259,15 @@ The following captures the known requests and decisions from the project history
 - Guest permissions are checked for the Dashboard, Games page, Extension launcher/toolbar popup, AI Assistant endpoints, and signed-in Feature Ideas page. Anonymous public idea submissions remain public as before.
 - The AI chat and legacy AI answer endpoints require a valid Superstar session and the guest's AI permission. Both extension AI clients attach the session token from extension-local storage.
 - Extension v1.2.3 contains the click-only launcher and permission-aware menu. The star's dark-background alpha filter has a lower threshold to preserve more of the original star artwork.
+
+
+## Account-backed extension preferences, ban revocation, and installer
+
+- Extension settings live in `chrome.storage.local` and sync to the signed-in Superstar account through `GET/PUT /account/extension-preferences`. The server stores them in `service-data.json`, alongside access codes, bans, permissions, and game progress, so a future app can reuse the same account preferences.
+- Only accounts with the **Extension** permission can read or write extension preferences. The dashboard saves settings only when the extension responds; if the extension is not installed/connected, the preference controls remain unavailable. Disabling Extension permission blocks preference sync server-side.
+- Preferences currently include mini-window mode and a quick-reply setting (default on).
+- Authentication sessions now retain originating device ID and IP. Adding a device/IP ban revokes matching active sessions; subsequent authenticated requests also check the ban list. Older sessions fall back to their latest login record.
+- The admin dashboard polls login history while open so new logins appear without manual refresh.
+- Admin storage status displays the active `DATA_DIR` and whether the environment variable is configured. This does not prove a Render disk is attached: Render must mount a persistent disk at that exact path. Without that, access codes, bans, preferences, game progress, and ideas can be lost when the instance is replaced.
+- Public installer: `/install`, linking to the signed latest CRX at `https://github.com/Dk7612/Superstar/releases/latest/download/Superstar.crx`. Signed CRX installations can use the existing update XML; an unpacked Developer Mode installation must be replaced once by the signed package to enter the auto-update channel.
+- Extension version is 1.2.4. Keep the existing persistent CRX signing key.
