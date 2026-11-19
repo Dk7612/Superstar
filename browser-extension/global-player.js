@@ -203,7 +203,7 @@
   function formatTime(s){return Math.floor(s/60).toString().padStart(2,"0")+":"+Math.floor(s%60).toString().padStart(2,"0");}
 
   launcher.addEventListener("mouseenter",showMenu);
-  launcher.addEventListener("click",()=>{if(open)hideMenu();else showMenu();});
+  launcher.addEventListener("click",()=>{if(!open)showMenu();});
   shell.addEventListener("mouseenter",()=>{});
   shell.addEventListener("mouseleave",hideMenu);
   shell.addEventListener("focusout",e=>{if(!shell.contains(e.relatedTarget))hideMenu();});
