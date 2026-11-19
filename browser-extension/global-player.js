@@ -4,8 +4,26 @@
 
   const host = document.createElement("div");
   host.id = "superstar-global-player-host";
-  host.style.cssText = "all:initial;position:fixed;z-index:2147483647;left:16px;bottom:16px;";
+  host.style.cssText = "all:initial;position:fixed;z-index:2147483647;left:16px;bottom:16px;display:none;";
   (document.documentElement || document.body).appendChild(host);
+  async function checkExtensionAccess() {
+    try {
+      const stored = await new Promise(resolve => chrome.storage.local.get(["superstarSessionToken"], resolve));
+      const token = stored.superstarSessionToken || "";
+      if (!token) { host.style.display = "none"; return; }
+      const response = await fetch("https://superstar-oa7t.onrender.com/account/permissions", {
+        headers: { "Authorization": "Bearer " + token },
+        cache: "no-store"
+      });
+      if (!response.ok) { host.style.display = "none"; return; }
+      const permissions = await response.json();
+      host.style.display = permissions.extension === true ? "block" : "none";
+    } catch { host.style.display = "none"; }
+  }
+  checkExtensionAccess();
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.superstarSessionToken) checkExtensionAccess();
+  });
   const root = host.attachShadow({ mode: "closed" });
 
   const style = document.createElement("style");
