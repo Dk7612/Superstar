@@ -316,3 +316,13 @@ The following captures the known requests and decisions from the project history
 - No signing identity or update URL changes: retain the existing persistent `EXTENSION_PRIVATE_KEY_B64` secret and stable update feed.
 - The v1.2.5 CRX includes the corrected permission-check startup order; the signed extension release workflow must complete successfully before asking users to update.
 - Verification: confirm the workflow publishes `extension-v1.2.5`, `Superstar.crx`, and `updates.xml`; then test the star in Opera GX after the signed update and a reload of the Superstar website tab.
+
+## Chrome-primary extension support (v1.2.6)
+
+- Chrome is the primary target browser. The Manifest V3 extension declares Chrome 103+ as its minimum because the extension uses `AbortSignal.timeout`; it uses the standard Chromium `chrome.*` extension APIs.
+- Opera GX remains a supported secondary browser because it is Chromium-based. Keep the shared extension source compatible with both browsers; do not fork browser-specific behavior unless a real API difference requires it.
+- `/install` now presents Chrome first and Opera GX second. Chrome installs from the extracted `Superstar-Chrome.zip` folder using `chrome://extensions` → Developer mode → Load unpacked. Opera GX can use the signed `Superstar.crx` package or the same unpacked ZIP if Opera blocks CRX sideloading.
+- The extension publishing workflow attaches both `Superstar-Chrome.zip` and the signed `Superstar.crx` plus `updates.xml` to each versioned GitHub Release. The Chrome ZIP is intended for local Developer Mode installation and as the source package for Chrome Web Store submission.
+- Chrome does not accept the project's self-hosted CRX update feed for ordinary Developer Mode installs. Those Chrome installs must be manually replaced/reloaded when updated. Automatic Chrome updates require the owner to submit and publish the package through the Chrome Web Store; no store listing or publication is claimed yet. Opera's signed-package update feed remains unchanged.
+- Preserve the existing CRX signing key and stable Opera update URL. The Chrome ZIP is built from the same source and retains the existing extension behavior and permissions.
+- v1.2.6 verification: validate the manifest JSON; check all extension JavaScript with `node --check`; verify the Chrome ZIP contains `browser-extension/manifest.json`; verify the signed CRX and update XML still build; manually load in Chrome 103+ and Opera GX, sign in to Superstar, enable Extension permission, and verify the launcher and toolbar popup.
