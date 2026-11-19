@@ -91,8 +91,15 @@
       context.fill();
     }
 
-    if (!reducedMotion.matches && document.visibilityState === "visible") window.requestAnimationFrame(draw);
-    else animationActive = false;
+  }
+
+  function animate(timestamp) {
+    if (reducedMotion.matches || document.visibilityState !== "visible") {
+      animationActive = false;
+      return;
+    }
+    draw(timestamp);
+    window.requestAnimationFrame(animate);
   }
 
   try {
@@ -122,7 +129,7 @@
     if (document.visibilityState === "visible" && !reducedMotion.matches && !animationActive) {
       animationActive = true;
       lastFrameTime = 0;
-      window.requestAnimationFrame(draw);
+      window.requestAnimationFrame(animate);
     }
   });
   reducedMotion.addEventListener("change", () => {
@@ -133,6 +140,6 @@
   resize();
   if (!reducedMotion.matches && document.visibilityState === "visible") {
     animationActive = true;
-    window.requestAnimationFrame(draw);
+    window.requestAnimationFrame(animate);
   }
 })();
