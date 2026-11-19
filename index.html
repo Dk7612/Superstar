@@ -230,6 +230,7 @@
 
 <script src="/starfield.js" defer></script>
 <script>
+if (location.pathname === "/admin") document.body.classList.add("admin-view");
 let role = "";
 let adminToken = "";
 let pendingBan = null;
@@ -514,17 +515,15 @@ async function login() {
 }
 
 function showAdminPanel() {
-  document.getElementById("adminPanel").style.display="block";
-  document.getElementById("loginPanel").style.display="block";
-  document.getElementById("bansPanel").style.display="block";
-  document.getElementById("ideasAdminPanel").style.display = "block";
-  if (location.pathname === "/admin") {
-    document.body.classList.add("admin-view");
-    document.getElementById("welcomePanel").style.display = "none";
-    document.getElementById("homeTiles").style.display = "none";
-    Promise.all([loadUsers(), loadDefaultPermissions(), loadLogins(), loadBans(), loadIdeas(), loadStorageStatus()]);
-    startAdminLoginPolling();
+  if (location.pathname !== "/admin") return;
+  for (const id of ["adminPanel", "loginPanel", "bansPanel", "ideasAdminPanel"]) {
+    document.getElementById(id).style.display = "block";
   }
+  document.body.classList.add("admin-view");
+  document.getElementById("welcomePanel").style.display = "none";
+  document.getElementById("homeTiles").style.display = "none";
+  Promise.all([loadUsers(), loadDefaultPermissions(), loadLogins(), loadBans(), loadIdeas(), loadStorageStatus()]);
+  startAdminLoginPolling();
 }
 function startAdminLoginPolling() {
   if (adminLoginPoll) clearInterval(adminLoginPoll);
