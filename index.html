@@ -16,16 +16,23 @@
     .brand img { display:block; width:42px; height:42px; border-radius:11px; object-fit:cover; }
     .nav-actions { display:flex; align-items:center; gap:14px; margin-left:auto; }
     .games-nav-button { padding:12px 22px; font-size:17px; font-weight:700; }
-    .star-settings { position:relative; }
-    .star-settings[open] { z-index:20; }
-    .star-settings summary { list-style:none; cursor:pointer; background:#27365f; color:#f5f7ff; padding:9px 14px; border:1px solid rgba(190,205,255,.18); border-radius:7px; }
-    .star-settings summary::-webkit-details-marker { display:none; }
-    .settings-menu { position:absolute; z-index:21; right:0; top:calc(100% + 8px); width:230px; padding:14px; background:#111a34; border:1px solid rgba(164,184,255,.25); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.4); }
-    .settings-menu label { display:block; margin:0 0 10px; }
-    .settings-menu select { display:block; width:100%; margin-top:5px; }
-    #miniWindowStatus { min-height:18px; margin:10px 0 0; }
-    #miniWindowSettings .mini-window-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-    #miniWindowSettings select { min-width:190px; }
+    .nav-link { display:inline-flex; align-items:center; justify-content:center; min-height:42px; padding:10px 15px; color:#edf1ff; text-decoration:none; background:rgba(39,54,95,.75); border:1px solid rgba(190,205,255,.18); border-radius:10px; font-weight:650; transition:background .18s ease,transform .18s ease; }
+    .nav-link:hover { background:#384a7c; transform:translateY(-1px); }
+    .nav-link[hidden] { display:none !important; }
+    .settings-icon { width:42px; height:42px; padding:0; font-size:21px; }
+    .home-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:16px; margin-top:20px; }
+    .home-tile { display:flex; flex-direction:column; gap:9px; min-height:150px; padding:20px; color:inherit; text-decoration:none; background:rgba(17,26,52,.88); border:1px solid rgba(164,184,255,.18); border-radius:14px; transition:transform .18s ease,border-color .18s ease; }
+    .home-tile:hover { transform:translateY(-3px); border-color:#7188ef; }
+    .home-tile strong { font-size:18px; }
+    .home-tile span { color:#b7c1df; line-height:1.5; }
+    .home-tile .tile-icon { font-size:25px; }
+    .admin-view .container > h1, .admin-view #installNotice, .admin-view #welcomePanel, .admin-view #homeTiles, .admin-view #loginCard { display:none !important; }
+    .admin-view #adminPanel, .admin-view #loginPanel, .admin-view #bansPanel, .admin-view #ideasAdminPanel { display:block !important; }
+    .admin-view #adminPanel { margin-top:22px; }
+    #adminNavLink { display:none; }
+    body.authenticated #adminNavLink.admin-visible { display:inline-flex; }
+    .visually-hidden-settings { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
+    @media(max-width:650px) { .top-nav { gap:10px; flex-wrap:wrap; } .nav-actions { gap:7px; flex-wrap:wrap; } .nav-link { padding:9px 11px; font-size:14px; } .settings-icon { width:40px; } }
     .card { background:rgba(17, 26, 52, .88); border:1px solid rgba(164,184,255,.18); padding:20px; margin:10px 0; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.24); backdrop-filter:blur(8px); }
     button { background:#27365f; color:#f5f7ff; padding:8px 15px; margin:5px; border:1px solid rgba(190,205,255,.18); border-radius:7px; cursor:pointer;}
     button:hover { background:#384a7c; }
@@ -49,8 +56,10 @@
     :root[data-theme="light"] button { background:#e1e8fa; color:#202945; border-color:#c3cee8; }
     :root[data-theme="light"] .star-settings summary:hover,
     :root[data-theme="light"] button:hover { background:#d1dcf5; }
-    :root[data-theme="light"] .settings-menu,
     :root[data-theme="light"] dialog { background:#fff; color:#202945; border-color:#cbd5eb; }
+    :root[data-theme="light"] .nav-link { color:#202945; background:#e1e8fa; border-color:#c3cee8; }
+    :root[data-theme="light"] .home-tile { background:rgba(255,255,255,.92); border-color:#d6def0; }
+    :root[data-theme="light"] .home-tile span { color:#53617e; }
     :root[data-theme="light"] .card { background:rgba(255,255,255,.9); border-color:#d6def0; box-shadow:0 10px 30px rgba(48,64,100,.12); }
     :root[data-theme="light"] button.generate { background:#536bc3; color:#fff; }
     :root[data-theme="light"] button.reset { background:#b94f6c; color:#fff; }
@@ -68,6 +77,7 @@
     body.logged-out .container { width:100%; min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; }
     body.logged-out .container > h1 { display:none; }
     body.logged-out #loginCard { width:min(320px,100%); margin:0; padding:0; background:transparent; color:#111; border:0; border-radius:0; box-shadow:none; backdrop-filter:none; }
+    body.admin-view.logged-out #loginCard { display:block !important; }
     body.logged-out #loginCard h2 { margin:0 0 16px; font-size:20px; font-weight:500; }
     body.logged-out #loginForm input { display:block; width:100%; margin:0 0 10px; background:#fff; color:#111; border:1px solid #c9c9c9; border-radius:4px; }
     body.logged-out #loginForm button { margin:0; padding:8px 14px; background:#f3f3f3; color:#111; border:1px solid #bdbdbd; border-radius:4px; }
@@ -95,45 +105,17 @@
 <nav class="container top-nav">
   <a class="brand" href="/" aria-label="Superstar home"><img src="/favicon.png?v=2" alt=""><span>Superstar</span></a>
   <div class="nav-actions">
-    <details class="star-settings">
-      <summary>Star settings</summary>
-      <div class="settings-menu">
-        <label>Direction
-          <select id="starDirection">
-            <option value="down-right">Down-right</option>
-            <option value="down-left" selected>Down-left</option>
-            <option value="up-right">Up-right</option>
-            <option value="up-left">Up-left</option>
-            <option value="down">Down</option>
-            <option value="up">Up</option>
-            <option value="right">Right</option>
-            <option value="left">Left (right to left)</option>
-          </select>
-        </label>
-        <label>Speed
-          <select id="starSpeed">
-            <option value="slow">Slow</option>
-            <option value="normal">Normal</option>
-            <option value="fast" selected>Fast</option>
-          </select>
-        </label>
-        <label>Theme
-          <select id="themeMode">
-            <option value="dark" selected>Dark</option>
-            <option value="light">Light</option>
-          </select>
-        </label>
-      </div>
-    </details>
-    <a href="/ai"><button class="games-nav-button" type="button">AI</button></a>
-    <a href="/games"><button class="games-nav-button" type="button">Games</button></a>
+    <a class="nav-link" href="/ai" id="aiNavLink">AI</a>
+    <a class="nav-link" href="/games" id="gamesNavLink">Games</a>
+    <a class="nav-link" href="/admin" id="adminNavLink">Admin</a>
+    <a class="nav-link settings-icon" href="/settings" aria-label="Settings" title="Settings">⚙</a>
   </div>
 </nav>
 
 <div id="permissionDeniedScreen" hidden style="position:fixed;inset:0;z-index:99999;background:#080f22;color:#f4f6ff;place-items:center;text-align:center;padding:24px"><div><h1>Access restricted</h1><p>This access code does not have permission to use the Superstar dashboard.</p></div></div>
 <div class="container">
   <h1>Dashboard</h1>
-  <p class="notice"><a href="/install">Install the Superstar browser extension</a></p>
+  <p class="notice" id="installNotice"><a href="/install">Install the Superstar browser extension</a></p>
   <div class="card" id="loginCard">
     <h2>Login</h2>
     <form id="loginForm">
@@ -144,25 +126,20 @@
   </div>
 
   <div class="card" id="welcomePanel" aria-live="polite">
-    <h2>You're logged in</h2>
-    <p class="notice" id="welcomeMessage">Welcome to the dashboard.</p>
+    <h2>Welcome to Superstar</h2>
+    <p class="notice" id="welcomeMessage">Your tools, games, and AI in one place.</p>
   </div>
-
-  <section class="card" id="miniWindowSettings" style="display:none" aria-labelledby="miniWindowTitle">
-    <h2 id="miniWindowTitle">Superstar Mini Window</h2>
-    <p class="notice">Choose what opens in the separate popup window when you click the Superstar extension icon.</p>
-    <div class="mini-window-actions">
-      <label for="miniWindowMode">Mini-window mode</label>
-      <select id="miniWindowMode">
-        <option value="ai-helper">AI Helper</option>
-        <option value="full-site">Full Superstar Website</option>
-      </select>
-      <label class="preference-toggle"><input id="quickReplyPreference" type="checkbox" checked> Concise quiz answers (question helper only)</label>
-      <button id="saveMiniWindowMode" type="button">Save preference</button>
-      <button id="openMiniWindow" class="generate" type="button">Open Superstar Mini Window</button>
-    </div>
-    <p class="notice" id="miniWindowStatus" role="status">Checking for the Superstar browser extension…</p>
+  <section class="home-grid" id="homeTiles" aria-label="Superstar tools">
+    <a class="home-tile" href="/ai" id="aiHomeTile"><span class="tile-icon" aria-hidden="true">✦</span><strong>Superstar AI</strong><span>Chat, brainstorm, learn, and get help with almost anything.</span></a>
+    <a class="home-tile" href="/games" id="gamesHomeTile"><span class="tile-icon" aria-hidden="true">🎮</span><strong>Games</strong><span>Open your games and focus tools.</span></a>
+    <a class="home-tile" href="/install" id="extensionHomeTile"><span class="tile-icon" aria-hidden="true">✧</span><strong>Browser extension</strong><span>Install Superstar and bring your tools to any tab.</span></a>
+    <a class="home-tile" href="/ideas" id="ideasHomeTile"><span class="tile-icon" aria-hidden="true">💡</span><strong>Suggest an idea</strong><span>Share a feature idea and help shape Superstar.</span></a>
   </section>
+  <div class="visually-hidden-settings" aria-hidden="true">
+    <select id="starDirection"><option value="down-right">Down-right</option><option value="down-left" selected>Down-left</option><option value="up-right">Up-right</option><option value="up-left">Up-left</option><option value="down">Down</option><option value="up">Up</option><option value="right">Right</option><option value="left">Left</option></select>
+    <select id="starSpeed"><option value="slow">Slow</option><option value="normal">Normal</option><option value="fast" selected>Fast</option></select>
+    <select id="themeMode"><option value="dark" selected>Dark</option><option value="light">Light</option></select>
+  </div>
   <button id="cookieSettingsLink" type="button" hidden>Cookie settings</button>
 
   <div class="card" id="adminPanel" style="display:none">
@@ -419,6 +396,7 @@ let accountSessionHeartbeat = null;
 function startAccountSessionHeartbeat(sessionToken) {
   if (accountSessionHeartbeat) clearInterval(accountSessionHeartbeat);
   accountSessionHeartbeat = setInterval(async () => {
+    if (document.visibilityState !== "visible") return;
     try {
       const response = await fetch("/account/permissions", {
         headers: { "Authorization": "Bearer " + sessionToken }, cache: "no-store"
@@ -430,7 +408,7 @@ function startAccountSessionHeartbeat(sessionToken) {
         window.location.reload();
       }
     } catch { /* Retry on the next heartbeat if the network is temporarily unavailable. */ }
-  }, 5000);
+  }, 30000);
 }
 
 function showAuthenticatedDashboard(session, remembered = false) {
@@ -445,12 +423,24 @@ function showAuthenticatedDashboard(session, remembered = false) {
         document.getElementById("permissionDeniedScreen").hidden = false;
         document.querySelector(".container").style.display = "none";
       } else {
-        const gamesLink = document.querySelector('a[href="/games"]');
+        const gamesLink = document.getElementById("gamesNavLink");
         if (gamesLink) gamesLink.hidden = permissions.games === false;
-        const aiLink = document.querySelector('a[href="/ai"]');
+        const gamesTile = document.getElementById("gamesHomeTile");
+        if (gamesTile) gamesTile.hidden = permissions.games === false;
+        const aiLink = document.getElementById("aiNavLink");
         if (aiLink) aiLink.hidden = permissions.ai === false;
-        const extensionSettings = document.getElementById("miniWindowSettings");
-        if (extensionSettings) extensionSettings.hidden = permissions.extension === false;
+        const aiTile = document.getElementById("aiHomeTile");
+        if (aiTile) aiTile.hidden = permissions.ai === false;
+        const extensionTile = document.getElementById("extensionHomeTile");
+        if (extensionTile) extensionTile.hidden = permissions.extension === false;
+        const ideasTile = document.getElementById("ideasHomeTile");
+        if (ideasTile) ideasTile.hidden = permissions.ideas === false;
+        const adminLink = document.getElementById("adminNavLink");
+        if (adminLink && role === "admin") adminLink.classList.add("admin-visible");
+        if (location.pathname === "/admin" && role !== "admin") {
+          document.getElementById("permissionDeniedScreen").hidden = false;
+          document.querySelector(".container").style.display = "none";
+        }
         const ideasLink = document.querySelector('a[href="/ideas"]');
         if (ideasLink) ideasLink.hidden = permissions.ideas === false;
       }
@@ -466,13 +456,8 @@ function showAuthenticatedDashboard(session, remembered = false) {
   document.body.classList.add("authenticated");
   document.getElementById("loginCard").style.display = "none";
   document.getElementById("welcomePanel").style.display = "block";
-  document.getElementById("miniWindowSettings").style.display = "block";
-  miniWindowStatus.textContent = "Checking for the Superstar browser extension…";
-  setTimeout(() => {
-    if (miniWindowStatus.textContent === "Checking for the Superstar browser extension…") {
-      miniWindowStatus.textContent = "Extension not detected. Install the extension and reload this page.";
-    }
-  }, 1800);
+  if (role === "admin") document.getElementById("adminNavLink").classList.add("admin-visible");
+  if (location.pathname === "/admin" && role === "admin") document.body.classList.add("admin-view");
   document.getElementById("welcomeMessage").textContent = remembered
     ? "Signed in as admin on this remembered device. Enjoy the stars."
     : `Signed in as ${role}. Enjoy the stars.`;
@@ -533,14 +518,19 @@ function showAdminPanel() {
   document.getElementById("loginPanel").style.display="block";
   document.getElementById("bansPanel").style.display="block";
   document.getElementById("ideasAdminPanel").style.display = "block";
-  Promise.all([loadUsers(), loadDefaultPermissions(), loadLogins(), loadBans(), loadIdeas(), loadStorageStatus()]);
-  startAdminLoginPolling();
+  if (location.pathname === "/admin") {
+    document.body.classList.add("admin-view");
+    document.getElementById("welcomePanel").style.display = "none";
+    document.getElementById("homeTiles").style.display = "none";
+    Promise.all([loadUsers(), loadDefaultPermissions(), loadLogins(), loadBans(), loadIdeas(), loadStorageStatus()]);
+    startAdminLoginPolling();
+  }
 }
 function startAdminLoginPolling() {
   if (adminLoginPoll) clearInterval(adminLoginPoll);
   adminLoginPoll = setInterval(() => {
-    if (role === "admin" && document.visibilityState === "visible") loadLogins(true);
-  }, 4000);
+    if (role === "admin" && document.visibilityState === "visible" && location.pathname === "/admin") loadLogins(true);
+  }, 20000);
 }
 async function loadStorageStatus() {
   const element = document.getElementById("storageStatus");
@@ -802,80 +792,6 @@ function renderBans(elementId, type, values) {
     list.appendChild(item);
   }
 }
-
-// --- Opera GX / Chromium mini-window extension bridge ---
-const miniWindowModeSelect = document.getElementById("miniWindowMode");
-const miniWindowStatus = document.getElementById("miniWindowStatus");
-let miniWindowExtensionAvailable = false;
-
-function sendMiniWindowMessage(type, mode, enabled) {
-  const requestId = crypto.randomUUID();
-  window.postMessage({
-    source: "superstar-site",
-    type,
-    mode,
-    enabled,
-    requestId
-  }, window.location.origin);
-}
-
-function syncMiniWindowSettings() {
-  miniWindowExtensionAvailable = false;
-  miniWindowStatus.textContent = "Checking for the Superstar browser extension…";
-  sendMiniWindowMessage("GET_MINI_MODE");
-}
-
-window.addEventListener("message", event => {
-  if (event.source !== window || event.origin !== window.location.origin) return;
-  const message = event.data;
-  if (!message || message.source !== "superstar-extension") return;
-  if (message.type === "GET_MINI_MODE_RESULT" || message.type === "SET_MINI_MODE_RESULT") {
-    miniWindowExtensionAvailable = message.ok === true;
-    if (message.ok && ["ai-helper", "full-site"].includes(message.mode)) {
-      miniWindowModeSelect.value = message.mode;
-      document.getElementById("quickReplyPreference").checked = message.quickReply !== false;
-      miniWindowStatus.textContent = "Extension connected. Preferences sync to this account and are saved in the extension.";
-    } else {
-      miniWindowStatus.textContent = "Extension not detected or permission denied. Install it and make sure this access code has Extension permission.";
-    }
-  } else if (message.type === "SET_QUICK_REPLY_RESULT") {
-    miniWindowStatus.textContent = message.ok
-      ? "Quick-reply preference saved to this account and extension."
-      : "Could not save preference. Check that the extension is connected and Extension permission is enabled.";
-  } else if (message.type === "SET_SESSION_RESULT") {
-    if (message.ok) syncMiniWindowSettings();
-    else miniWindowStatus.textContent = "Extension not detected or the account does not have Extension permission.";
-  } else if (message.type === "OPEN_MINI_WINDOW_RESULT") {
-    miniWindowStatus.textContent = message.ok
-      ? "Opening your Superstar mini-window…"
-      : "Could not open the mini-window. Check that the extension is enabled.";
-  }
-});
-
-document.getElementById("saveMiniWindowMode").addEventListener("click", () => {
-  if (!miniWindowExtensionAvailable) {
-    miniWindowStatus.textContent = "Install and enable the Superstar Mini Window extension first.";
-    return;
-  }
-  sendMiniWindowMessage("SET_MINI_MODE", miniWindowModeSelect.value);
-});
-
-document.getElementById("quickReplyPreference").addEventListener("change", event => {
-  if (!miniWindowExtensionAvailable) {
-    event.target.checked = !event.target.checked;
-    miniWindowStatus.textContent = "Install the extension and enable Extension permission before saving preferences.";
-    return;
-  }
-  sendMiniWindowMessage("SET_QUICK_REPLY", null, event.target.checked);
-});
-
-document.getElementById("openMiniWindow").addEventListener("click", () => {
-  if (!miniWindowExtensionAvailable) {
-    miniWindowStatus.textContent = "Install and enable the Superstar Mini Window extension first.";
-    return;
-  }
-  sendMiniWindowMessage("OPEN_MINI_WINDOW");
-});
 
 </script>
 </body>
