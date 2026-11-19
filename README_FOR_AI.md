@@ -206,3 +206,11 @@ The following captures the known requests and decisions from the project history
 - Bumped the extension version to 1.2.2. Publish with the existing persistent CRX signing key and do not change the extension identity.
 - Regression checklist: run `node --check browser-extension/global-player.js`; validate manifest JSON; test moving the mouse from the star to each menu option, clicking Games/AI/Focus/Full website, moving between menu and launcher, waiting outside the widget for dismissal, keyboard focus/Tab/Escape, and touch tap behavior. Confirm the favicon's dark square is actually transparent, not blended against the webpage, on both light and dark page backgrounds.
 - Runtime browser verification is still required; source changes and a successful packaging workflow alone do not prove the visual result in Opera GX.
+
+
+## Extension launcher hit-area sizing refinement
+
+- Keep the closed launcher shell at exactly the 46×46 px launcher width so the transparent, otherwise-empty portion of the extension does not intercept clicks across the bottom-left of the host webpage.
+- Add the `open` class only while the menu/tool GUI is visible. That state expands the shell to the menu's responsive width (up to 310 px); closing the GUI removes the class and restores the compact hit area.
+- The launcher itself remains 46×46 px in both states. Only the surrounding widget area expands when the GUI needs room for its controls.
+- Regression checks: with the menu closed, click and drag across the area to the right of the star and confirm the webpage receives those interactions; open the menu and confirm all menu options and tool controls remain clickable; close it and confirm the hit area shrinks again. Re-run `node --check browser-extension/global-player.js` and validate the manifest before publishing.
