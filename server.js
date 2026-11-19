@@ -247,7 +247,7 @@ function requireAdmin(req, res, next) {
 function requireSession(req, res, next) {
   const token = req.get("authorization")?.replace(/^Bearer\s+/i, "");
   const session = token && sessionTokens.get(hashTrustedToken(token));
-  if (!session || session.expiresAt <= Date.now() || !users[session.code] || users[session.code].disabled === true) {
+  if (!session || session.expiresAt <= Date.now() || !users[session.code]) {
     return res.status(401).json({ error: "Sign in again to sync game progress" });
   }
   req.userCode = session.code;
@@ -503,7 +503,6 @@ app.post("/login", (req, res) => {
   }
 
   const user = users[code];
-  if (user?.disabled === true) return res.status(403).json({ ok: false, error: "This guest account has been disabled by the administrator." });
   if (!user) {
     return res.status(401).json({ ok: false, error: "Invalid code" });
   }
@@ -606,17 +605,6 @@ app.put("/admin/guest-access/:code", requireAdmin, (req, res) => {
   try { savePersistentState(); } catch (error) { if (previous) guestAccess[code] = previous; else delete guestAccess[code]; console.error(error); return res.status(500).json({ error: "Could not save guest access." }); }
   res.json({ ok: true, access: guestAccess[code] });
 });
-app.put("/admin/guest-access/:code/status", requireAdmin, (req, res) => {
-  const code = req.params.code, disabled = req.body?.disabled;
-  if (!users[code] || users[code].role !== "guest") return res.status(404).json({ error: "Guest code not found." });
-  if (typeof disabled !== "boolean") return res.status(400).json({ error: "disabled must be true or false." });
-  const previous = users[code].disabled === true; users[code].disabled = disabled;
-  const removed = [];
-  if (disabled) for (const [hash, session] of sessionTokens) if (session.code === code) { removed.push([hash, session]); sessionTokens.delete(hash); }
-  try { savePersistentState(); } catch (error) { users[code].disabled = previous; for (const [hash, session] of removed) sessionTokens.set(hash, session); console.error(error); return res.status(500).json({ error: "Could not update guest status." }); }
-  res.json({ ok: true, disabled });
-});
-
 app.post("/admin/user-name", requireAdmin, (req, res) => {
   const { code, name } = req.body || {};
   if (typeof code !== "string" || !Object.prototype.hasOwnProperty.call(users, code)) {
