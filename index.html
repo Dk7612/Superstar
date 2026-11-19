@@ -132,6 +132,7 @@
 <div id="permissionDeniedScreen" hidden style="position:fixed;inset:0;z-index:99999;background:#080f22;color:#f4f6ff;display:grid;place-items:center;text-align:center;padding:24px"><div><h1>Access restricted</h1><p>This access code does not have permission to use the Superstar dashboard.</p></div></div>
 <div class="container">
   <h1>Dashboard</h1>
+  <p class="notice"><a href="/install">Install the Superstar browser extension</a></p>
   <div class="card" id="loginCard">
     <h2>Login</h2>
     <form id="loginForm">
@@ -155,6 +156,7 @@
         <option value="ai-helper">AI Helper</option>
         <option value="full-site">Full Superstar Website</option>
       </select>
+      <label class="preference-toggle"><input id="quickReplyPreference" type="checkbox" checked> Quick replies (shorter AI responses)</label>
       <button id="saveMiniWindowMode" type="button">Save preference</button>
       <button id="openMiniWindow" class="generate" type="button">Open Superstar Mini Window</button>
     </div>
@@ -164,6 +166,7 @@
 
   <div class="card" id="adminPanel" style="display:none">
     <h2>Code Generator</h2>
+    <p id="storageStatus" class="notice" role="status">Checking saved-data storage configuration…</p>
     <form id="generateCodeForm">
       <input id="customCodeInput" type="text" minlength="4" maxlength="32" pattern="[A-Za-z0-9_-]{4,32}"
         placeholder="Custom code (optional)" aria-label="Custom guest code">
@@ -189,6 +192,7 @@
 
   <div class="card" id="loginPanel" style="display:none">
     <h2>Login history (latest 500)</h2>
+    <p id="loginActivityStatus" class="notice" role="status" aria-live="polite">Live login monitoring is active while this dashboard is open.</p>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Time</th><th>Code</th><th>Role</th><th>IP address</th><th>Device ID</th><th>Actions</th></tr></thead>
@@ -198,6 +202,7 @@
   </div>
 
   <div class="card" id="bansPanel" style="display:none">
+    <p id="banStatus" class="notice" role="status"></p>
     <h2>Banned IP addresses</h2>
     <ul id="bannedIps"></ul>
     <h2>Banned devices</h2>
@@ -251,6 +256,8 @@ let role = "";
 let adminToken = "";
 let pendingBan = null;
 let adminRecovery = null;
+let newestLoginSeenKey = null;
+let adminLoginPoll = null;
 
 function adminHeaders(json = false) {
   const headers = { "Authorization": `Bearer ${adminToken}` };
@@ -499,7 +506,26 @@ function showAdminPanel() {
   document.getElementById("loginPanel").style.display="block";
   document.getElementById("bansPanel").style.display="block";
   document.getElementById("ideasAdminPanel").style.display = "block";
-  Promise.all([loadUsers(), loadDefaultPermissions(), loadLogins(), loadBans(), loadIdeas()]);
+  Promise.all([loadUsers(), loadDefaultPermissions(), loadLogins(), loadBans(), loadIdeas(), loadStorageStatus()]);
+  startAdminLoginPolling();
+}
+function startAdminLoginPolling() {
+  if (adminLoginPoll) clearInterval(adminLoginPoll);
+  adminLoginPoll = setInterval(() => {
+    if (role === "admin" && document.visibilityState === "visible") loadLogins(true);
+  }, 4000);
+}
+async function loadStorageStatus() {
+  const element = document.getElementById("storageStatus");
+  try {
+    const response = await adminFetch("/admin/storage-status", { headers: adminHeaders() });
+    if (!response.ok) throw new Error("Could not read storage status.");
+    const data = await response.json();
+    element.textContent = data.dataDirectoryEnvironmentConfigured
+      ? "DATA_DIR is set to " + data.dataDirectory + ". Confirm that your Render persistent disk is mounted at this exact path before redeploying."
+      : "WARNING: DATA_DIR is not set. The default data folder may be temporary, so access codes, bans, and game progress could be lost on redeploy. Configure a Render persistent disk before redeploying.";
+    element.style.color = data.dataDirectoryEnvironmentConfigured ? "" : "#ff9b78";
+  } catch (error) { element.textContent = error.message || "Could not check storage configuration."; }
 }
 
 async function generateCode() {
@@ -607,10 +633,24 @@ async function resetDevice(code) {
   loadUsers();
 }
 
-async function loadLogins() {
+async function loadLogins(silent = false) {
   const res = await adminFetch("/admin/logins", { headers:adminHeaders()});
-  if (!res.ok) return alert("Could not load login history.");
+  if (!res.ok) { if (!silent) alert("Could not load login history."); return; }
   const logins = await res.json();
+  const latest = logins[0];
+  const latestKey = latest ? [latest.time, latest.code, latest.deviceID].join("|") : "";
+  const activity = document.getElementById("loginActivityStatus");
+  if (newestLoginSeenKey === null) {
+    newestLoginSeenKey = latestKey;
+    activity.textContent = "Live login monitoring is active. Waiting for new logins…";
+  } else if (latestKey && latestKey !== newestLoginSeenKey) {
+    const oldIndex = logins.findIndex(entry => [entry.time, entry.code, entry.deviceID].join("|") === newestLoginSeenKey);
+    const count = oldIndex < 0 ? logins.length : oldIndex;
+    activity.textContent = count + " new login" + (count === 1 ? "" : "s") + " detected just now.";
+    newestLoginSeenKey = latestKey;
+  } else if (!silent) {
+    activity.textContent = "Live login monitoring is active. No new logins.";
+  }
   const list = document.getElementById("loginList");
   list.replaceChildren();
   for (const login of logins) {
@@ -674,7 +714,10 @@ document.getElementById("confirmBan").addEventListener("click", async () => {
     method:"POST", headers:adminHeaders(true), body:JSON.stringify(banRequest)
   });
   if (!res.ok) return alert((await res.json()).error || "Could not apply ban.");
+  const result = await res.json();
+  document.getElementById("banStatus").textContent = "Ban saved. " + (result.revokedSessions || 0) + " active session(s) revoked.";
   loadBans();
+  loadLogins(true);
 });
 
 async function unban(type, value) {
@@ -738,12 +781,13 @@ const miniWindowModeSelect = document.getElementById("miniWindowMode");
 const miniWindowStatus = document.getElementById("miniWindowStatus");
 let miniWindowExtensionAvailable = false;
 
-function sendMiniWindowMessage(type, mode) {
+function sendMiniWindowMessage(type, mode, enabled) {
   const requestId = crypto.randomUUID();
   window.postMessage({
     source: "superstar-site",
     type,
     mode,
+    enabled,
     requestId
   }, window.location.origin);
 }
@@ -762,10 +806,15 @@ window.addEventListener("message", event => {
     miniWindowExtensionAvailable = message.ok === true;
     if (message.ok && ["ai-helper", "full-site"].includes(message.mode)) {
       miniWindowModeSelect.value = message.mode;
-      miniWindowStatus.textContent = "Extension connected. Your preference is saved in the browser extension.";
+      document.getElementById("quickReplyPreference").checked = message.quickReply !== false;
+      miniWindowStatus.textContent = "Extension connected. Preferences sync to this account and are saved in the extension.";
     } else {
-      miniWindowStatus.textContent = "Extension not detected. Install the Superstar Mini Window extension in Opera GX, then reload this page.";
+      miniWindowStatus.textContent = "Extension not detected or permission denied. Install it and make sure this access code has Extension permission.";
     }
+  } else if (message.type === "SET_QUICK_REPLY_RESULT") {
+    miniWindowStatus.textContent = message.ok
+      ? "Quick-reply preference saved to this account and extension."
+      : "Could not save preference. Check that the extension is connected and Extension permission is enabled.";
   } else if (message.type === "OPEN_MINI_WINDOW_RESULT") {
     miniWindowStatus.textContent = message.ok
       ? "Opening your Superstar mini-window…"
@@ -779,6 +828,15 @@ document.getElementById("saveMiniWindowMode").addEventListener("click", () => {
     return;
   }
   sendMiniWindowMessage("SET_MINI_MODE", miniWindowModeSelect.value);
+});
+
+document.getElementById("quickReplyPreference").addEventListener("change", event => {
+  if (!miniWindowExtensionAvailable) {
+    event.target.checked = !event.target.checked;
+    miniWindowStatus.textContent = "Install the extension and enable Extension permission before saving preferences.";
+    return;
+  }
+  sendMiniWindowMessage("SET_QUICK_REPLY", null, event.target.checked);
 });
 
 document.getElementById("openMiniWindow").addEventListener("click", () => {
