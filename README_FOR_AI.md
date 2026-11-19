@@ -271,3 +271,11 @@ The following captures the known requests and decisions from the project history
 - Admin storage status displays the active `DATA_DIR` and whether the environment variable is configured. This does not prove a Render disk is attached: Render must mount a persistent disk at that exact path. Without that, access codes, bans, preferences, game progress, and ideas can be lost when the instance is replaced.
 - Public installer: `/install`, linking to the signed latest CRX at `https://github.com/Dk7612/Superstar/releases/latest/download/Superstar.crx`. Signed CRX installations can use the existing update XML; an unpacked Developer Mode installation must be replaced once by the signed package to enter the auto-update channel.
 - Extension version is 1.2.4. Keep the existing persistent CRX signing key.
+
+
+## Ban enforcement and admin live login monitor
+
+- Every account/admin API request validates the session's originating device and IP against the current ban lists. A new ban also removes matching live sessions immediately; legacy sessions use the account's latest login-history record as a migration fallback.
+- The dashboard checks its active session every five seconds so a newly banned user is redirected out instead of remaining on a stale authenticated page. Extension content scripts re-check Extension permission periodically, and toolbar popup opens always validate against the server.
+- The admin login-history panel refreshes every four seconds while the tab is visible and displays how many new logins were detected since the previous poll.
+- The ban confirmation result reports how many active sessions were revoked.
