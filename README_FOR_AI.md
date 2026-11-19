@@ -214,3 +214,12 @@ The following captures the known requests and decisions from the project history
 - Add the `open` class only while the menu/tool GUI is visible. That state expands the shell to the menu's responsive width (up to 310 px); closing the GUI removes the class and restores the compact hit area.
 - The launcher itself remains 46×46 px in both states. Only the surrounding widget area expands when the GUI needs room for its controls.
 - Regression checks: with the menu closed, click and drag across the area to the right of the star and confirm the webpage receives those interactions; open the menu and confirm all menu options and tool controls remain clickable; close it and confirm the hit area shrinks again. Re-run `node --check browser-extension/global-player.js` and validate the manifest before publishing.
+
+
+## Extension menu dismissal behavior refinement
+
+- The launcher still opens the menu on mouse hover and on click/tap.
+- Moving the pointer away from the launcher, menu, or tool view no longer dismisses the GUI. Removed pointer-leave timers and focus-loss dismissal.
+- The GUI now closes only when the user clicks outside the extension host. The document-level click listener runs in capture phase and checks the composed event path, so clicks inside the closed Shadow DOM (menu options, AI input/send, game, focus controls, back/close) are treated as inside and do not accidentally dismiss the GUI.
+- The explicit × close control and Escape key continue to close the GUI. Clicking the launcher while already open does not force-close it; an outside click is the dismissal gesture.
+- Regression checks: open the launcher, move the pointer anywhere outside without clicking (GUI must remain open), click outside (GUI must close), then verify all internal controls remain usable and do not trigger outside dismissal. Confirm closed hit area remains 46×46 px and open hit area expands with the GUI.
