@@ -89,10 +89,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (message.type === "GET_MINI_MODE") {
-    syncPreferencesFromAccount().catch(() => {});
-    chrome.storage.local.get(["miniWindowMode", "quickReply"]).then(stored =>
-      sendResponse({ ok: true, mode: stored.miniWindowMode === "full-site" ? "full-site" : DEFAULT_MODE, quickReply: stored.quickReply !== false })
-    ).catch(() => sendResponse({ ok: false, mode: DEFAULT_MODE }));
+    syncPreferencesFromAccount().then(async synced => {
+      if (!synced) { sendResponse({ ok: false, denied: true }); return; }
+      const stored = await chrome.storage.local.get(["miniWindowMode", "quickReply"]);
+      sendResponse({ ok: true, mode: stored.miniWindowMode === "full-site" ? "full-site" : DEFAULT_MODE, quickReply: stored.quickReply !== false });
+    }).catch(() => sendResponse({ ok: false, denied: true }));
     return true;
   }
 
