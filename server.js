@@ -663,6 +663,71 @@ const aiRequestBuckets = new Map();
 const AI_WINDOW_MS = 60_000;
 const AI_MAX_REQUESTS = 20;
 
+// General conversational Superstar AI. Conversation history is supplied by the popup; the API key stays server-side.
+app.post("/api/ai/chat", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  if (!geminiApiKey) {
+    return res.status(503).json({ error: "AI is not configured yet. Add GEMINI_API_KEY to the Render environment." });
+  }
+
+  const rawMessages = Array.isArray(req.body?.messages) ? req.body.messages : [];
+  const messages = rawMessages.slice(-12).map(item => ({
+    role: item?.role === "assistant" ? "model" : item?.role === "user" ? "user" : "",
+    text: typeof item?.content === "string" ? item.content.trim() : ""
+  }));
+  const totalLength = messages.reduce((sum, item) => sum + item.text.length, 0);
+  if (!messages.length || messages.some(item => !item.role || !item.text || item.text.length > 2500) ||
+      messages[messages.length - 1].role !== "user" || totalLength > 8000) {
+    return res.status(400).json({ error: "Send a conversation with a latest message (up to 2,500 characters)." });
+  }
+
+  const now = Date.now();
+  const ip = normalizeIp(req.ip) || "unknown";
+  const bucket = aiRequestBuckets.get(ip) || { startedAt: now, count: 0 };
+  if (now - bucket.startedAt >= AI_WINDOW_MS) {
+    bucket.startedAt = now;
+    bucket.count = 0;
+  }
+  bucket.count += 1;
+  aiRequestBuckets.set(ip, bucket);
+  if (bucket.count > AI_MAX_REQUESTS) {
+    return res.status(429).json({ error: "AI request limit reached. Wait a minute and try again." });
+  }
+  if (aiRequestBuckets.size > 2000) {
+    for (const [key, value] of aiRequestBuckets) {
+      if (now - value.startedAt >= AI_WINDOW_MS) aiRequestBuckets.delete(key);
+    }
+  }
+
+  try {
+    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + encodeURIComponent(geminiApiKey), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [{ text: "You are Superstar AI, a friendly, capable general-purpose assistant. Answer naturally and conversationally, explain things clearly, ask a follow-up when needed, and be honest when uncertain. Do not assume you can see the user's webpage or files; only use information they provide in chat." }]
+        },
+        contents: messages.map(item => ({ role: item.role, parts: [{ text: item.text }] })),
+        generationConfig: { temperature: 0.7, maxOutputTokens: 700 }
+      }),
+      signal: AbortSignal.timeout(30_000)
+    });
+    if (!response.ok) {
+      const detail = await response.text();
+      console.error("Gemini chat API returned", response.status, detail.slice(0, 500));
+      if (response.status === 429) return res.status(429).json({ error: "The AI provider's free-tier limit was reached. Try again later." });
+      return res.status(502).json({ error: "The AI provider could not answer right now." });
+    }
+    const data = await response.json();
+    const reply = data.candidates?.[0]?.content?.parts?.map(part => part.text || "").join("").trim() || "";
+    if (!reply) return res.status(502).json({ error: "The AI returned an empty response. Try again." });
+    res.json({ reply: reply.slice(0, 6000) });
+  } catch (error) {
+    console.error("AI chat request failed:", error.message);
+    res.status(502).json({ error: "Could not reach the AI provider. Try again in a moment." });
+  }
+});
+
 app.post("/api/ai/answer", async (req, res) => {
   res.set("Cache-Control", "no-store");
   if (!geminiApiKey) {

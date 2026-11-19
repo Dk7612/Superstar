@@ -4,111 +4,133 @@
 
   const host = document.createElement("div");
   host.id = "superstar-global-player-host";
-  host.style.cssText = "all:initial;position:fixed;z-index:2147483647;right:20px;bottom:18px;";
+  host.style.cssText = "all:initial;position:fixed;z-index:2147483647;left:18px;bottom:18px;";
   (document.documentElement || document.body).appendChild(host);
   const root = host.attachShadow({ mode: "closed" });
 
   const style = document.createElement("style");
   style.textContent = `
     *{box-sizing:border-box}
-    .shell{font:13px/1.4 Arial,sans-serif;color:#f4f6ff;width:min(370px,calc(100vw - 28px));filter:drop-shadow(0 10px 28px #0008)}
-    .bar{display:flex;align-items:center;gap:9px;padding:9px 11px;border:1px solid #5365a5;border-radius:14px;background:linear-gradient(110deg,#121b36,#202d55);min-height:54px}
-    .brand{font-weight:700;white-space:nowrap;flex:1;display:flex;align-items:center;gap:7px}
-    .star{font-size:18px}.muted{color:#b8c5e8;font-size:11px}
-    button,a{font:inherit;cursor:pointer}
-    button{border:1px solid #5365a5;border-radius:9px;background:#2e4078;color:#fff;padding:7px 10px}
-    button:hover,a:hover{filter:brightness(1.18)}
-    button.icon{width:30px;height:30px;padding:0;font-size:17px}
-    a.open{color:#fff;text-decoration:none;border:1px solid #5365a5;border-radius:9px;padding:6px 9px;background:#2e4078;white-space:nowrap}
-    .panel{margin-bottom:8px;padding:13px;border:1px solid #5365a5;border-radius:14px;background:#111a33}
+    .shell{font:13px/1.45 Arial,sans-serif;color:#f4f6ff;width:min(350px,calc(100vw - 36px));filter:drop-shadow(0 10px 28px #0008)}
+    .launcher{width:54px;height:54px;padding:7px;border:1px solid #7184d4;border-radius:50%;background:linear-gradient(145deg,#26396f,#111a35);display:grid;place-items:center;cursor:pointer;box-shadow:0 5px 18px #0007}
+    .launcher:hover{filter:brightness(1.18);transform:translateY(-1px)}
+    .launcher img{width:100%;height:100%;object-fit:contain;border-radius:50%}
+    button{font:inherit;cursor:pointer}
+    .panel{position:absolute;left:0;bottom:66px;width:100%;height:min(470px,calc(100vh - 110px));min-height:260px;display:flex;flex-direction:column;overflow:hidden;border:1px solid #5365a5;border-radius:16px;background:#101a34;box-shadow:0 14px 38px #0009}
     .panel[hidden]{display:none}
-    label{display:block;color:#c6d1ef;margin:9px 0 5px;font-size:12px}
-    textarea{display:block;width:100%;resize:vertical;min-height:66px;border:1px solid #465780;border-radius:8px;padding:9px;background:#080f22;color:#fff;font:13px/1.4 Arial,sans-serif}
-    #q{min-height:75px}
-    .ask{width:100%;margin-top:9px;background:#586fe0;font-weight:700}
-    .status{color:#b8c5e8;font-size:11px;min-height:16px;margin:8px 0 0}
-    .answer{margin-top:9px;padding:10px;border-radius:9px;background:#202d50;white-space:pre-wrap;overflow-wrap:anywhere}
-    .answer[hidden]{display:none}
-    .answer strong{color:#c5bdff}
-    @media(max-width:440px){.shell{width:calc(100vw - 24px)}}
+    .head{display:flex;align-items:center;gap:9px;padding:11px 13px;background:linear-gradient(110deg,#172448,#263765);border-bottom:1px solid #435587}
+    .head img{width:25px;height:25px;object-fit:contain}
+    .heading{font-weight:700;flex:1}
+    .close{width:29px;height:29px;border:1px solid #5365a5;border-radius:8px;background:#2e4078;color:white;font-size:18px}
+    .messages{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:9px}
+    .bubble{max-width:91%;padding:9px 11px;border-radius:12px;white-space:pre-wrap;overflow-wrap:anywhere}
+    .assistant{align-self:flex-start;background:#202d50;color:#f4f6ff;border:1px solid #34466f}
+    .user{align-self:flex-end;background:#5268c8;color:white}
+    .welcome{color:#b8c5e8;font-size:12px;margin:2px 2px 7px}
+    .composer{padding:10px;border-top:1px solid #34466f;background:#121e3b}
+    textarea{display:block;width:100%;min-height:58px;max-height:120px;resize:vertical;border:1px solid #465780;border-radius:9px;padding:9px;background:#080f22;color:#fff;font:13px/1.4 Arial,sans-serif}
+    .sendrow{display:flex;align-items:center;gap:8px;margin-top:8px}
+    .status{flex:1;color:#b8c5e8;font-size:11px;min-height:15px}
+    .send{border:0;border-radius:9px;background:#586fe0;color:white;padding:8px 15px;font-weight:700}
+    .send:disabled{opacity:.55;cursor:wait}
+    @media(max-width:440px){.shell{width:calc(100vw - 36px)}.panel{height:min(430px,calc(100vh - 100px))}}
+    @media(prefers-reduced-motion:no-preference){.launcher{transition:transform .15s,filter .15s}}
   `;
   root.appendChild(style);
 
   const shell = document.createElement("section");
   shell.className = "shell";
   shell.innerHTML = `
-    <div class="panel" id="panel" hidden>
-      <label for="q">Ask Superstar AI</label>
-      <textarea id="q" maxlength="1200" placeholder="Type or paste your question…"></textarea>
-      <label for="choices">Answer choices (one per line)</label>
-      <textarea id="choices" placeholder="Choice 1&#10;Choice 2&#10;Choice 3&#10;Choice 4"></textarea>
-      <button class="ask" id="ask">Ask AI</button>
-      <p class="status" id="status" role="status">Enter a question and at least two choices.</p>
-      <div class="answer" id="answer" hidden></div>
-    </div>
-    <div class="bar">
-      <div class="brand"><span class="star">⭐</span><span>Superstar</span><span class="muted">Mini player</span></div>
-      <button id="ai" type="button">AI</button>
-      <a class="open" href="https://superstar-oa7t.onrender.com/" target="_blank" rel="noopener noreferrer">Open</a>
-      <button class="icon" id="min" type="button" aria-label="Hide mini player">−</button>
-    </div>
+    <section class="panel" id="panel" aria-label="Superstar AI chat" hidden>
+      <header class="head">
+        <img src="https://superstar-oa7t.onrender.com/favicon.png" alt="">
+        <span class="heading">Superstar AI</span>
+        <button class="close" id="close" type="button" aria-label="Close chat">×</button>
+      </header>
+      <div class="messages" id="messages" aria-live="polite">
+        <p class="welcome">Hey! I'm Superstar AI. Ask me anything.</p>
+      </div>
+      <form class="composer" id="form">
+        <textarea id="prompt" maxlength="2500" placeholder="Message Superstar AI…" aria-label="Message Superstar AI"></textarea>
+        <div class="sendrow"><span class="status" id="status" role="status">Enter to send · Shift+Enter for a new line</span><button class="send" id="send" type="submit">Send</button></div>
+      </form>
+    </section>
+    <button class="launcher" id="launcher" type="button" aria-label="Open Superstar AI" aria-expanded="false">
+      <img src="https://superstar-oa7t.onrender.com/favicon.png" alt="Superstar">
+    </button>
   `;
   root.appendChild(shell);
 
   const panel = root.getElementById("panel");
-  const aiButton = root.getElementById("ai");
-  const q = root.getElementById("q");
-  const choices = root.getElementById("choices");
-  const ask = root.getElementById("ask");
+  const launcher = root.getElementById("launcher");
+  const close = root.getElementById("close");
+  const messages = root.getElementById("messages");
+  const form = root.getElementById("form");
+  const prompt = root.getElementById("prompt");
+  const send = root.getElementById("send");
   const status = root.getElementById("status");
-  const answer = root.getElementById("answer");
-  const min = root.getElementById("min");
+  const history = [];
+  let waiting = false;
 
-  aiButton.addEventListener("click", () => {
-    panel.hidden = !panel.hidden;
-    if (!panel.hidden) q.focus();
-  });
-  min.addEventListener("click", () => {
-    host.remove();
+  function setOpen(open) {
+    panel.hidden = !open;
+    launcher.setAttribute("aria-expanded", String(open));
+    launcher.setAttribute("aria-label", open ? "Close Superstar AI" : "Open Superstar AI");
+    if (open) prompt.focus();
+  }
+  function addBubble(text, role) {
+    const bubble = document.createElement("div");
+    bubble.className = "bubble " + role;
+    bubble.textContent = text;
+    messages.appendChild(bubble);
+    messages.scrollTop = messages.scrollHeight;
+    return bubble;
+  }
+  launcher.addEventListener("click", () => setOpen(panel.hidden));
+  close.addEventListener("click", () => setOpen(false));
+  prompt.addEventListener("keydown", event => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      form.requestSubmit();
+    }
   });
 
-  ask.addEventListener("click", async () => {
-    const question = q.value.trim();
-    const options = choices.value.split("\n").map(value => value.trim()).filter(Boolean);
-    if (!question || options.length < 2) {
-      status.textContent = "Enter a question and at least two choices.";
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+    const message = prompt.value.trim();
+    if (!message || waiting) return;
+    if (message.length > 2500) {
+      status.textContent = "Please keep messages under 2,500 characters.";
       return;
     }
-    if (question.length > 1200 || options.length > 8 || options.some(value => value.length > 200)) {
-      status.textContent = "Use 2–8 choices, each up to 200 characters.";
-      return;
-    }
-    ask.disabled = true;
+    history.push({ role: "user", content: message });
+    addBubble(message, "user");
+    prompt.value = "";
+    waiting = true;
+    send.disabled = true;
     status.textContent = "Thinking…";
-    answer.hidden = true;
+    const pending = addBubble("Thinking…", "assistant");
     try {
-      const response = await fetch("https://superstar-oa7t.onrender.com/api/ai/answer", {
+      const response = await fetch("https://superstar-oa7t.onrender.com/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, choices: options }),
-        signal: AbortSignal.timeout(25000)
+        body: JSON.stringify({ messages: history.slice(-12) }),
+        signal: AbortSignal.timeout(35000)
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "AI request failed.");
-      const heading = document.createElement("strong");
-      heading.textContent = data.answer ? "Suggested answer: " + data.answer : "No confident answer";
-      const detail = document.createElement("div");
-      detail.textContent = (data.explanation || "No explanation provided.") +
-        "\nConfidence estimate: " + Math.round((data.confidence || 0) * 100) + "%";
-      answer.replaceChildren(heading, detail);
-      answer.hidden = false;
-      status.textContent = "Done — review the explanation before deciding.";
+      const reply = typeof data.reply === "string" && data.reply.trim() ? data.reply.trim() : "I couldn't form a response. Try asking another way.";
+      pending.textContent = reply;
+      history.push({ role: "assistant", content: reply });
+      status.textContent = "Ready";
     } catch (error) {
-      status.textContent = error.name === "TimeoutError"
-        ? "Request timed out. Try again."
-        : (error.message || "Could not contact Superstar.");
+      pending.remove();
+      history.pop();
+      status.textContent = error.name === "TimeoutError" ? "That took too long. Try again." : (error.message || "Could not contact Superstar.");
     } finally {
-      ask.disabled = false;
+      waiting = false;
+      send.disabled = false;
+      prompt.focus();
     }
   });
 })();
