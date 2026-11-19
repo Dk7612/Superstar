@@ -87,6 +87,7 @@
     #cookieSettingsLink[hidden] { display:none; }
     #welcomePanel { display:none; }
     @media (prefers-reduced-motion: reduce) { .starfield { opacity:.65; } }
+.authenticated .container{width:min(1180px,94%);padding:24px 18px 40px}.workspace{margin-top:18px}.workspace-tabs,.admin-tabs{display:flex;flex-wrap:wrap;gap:9px;margin:16px 0 20px}.workspace-tabs button,.admin-tabs button{margin:0;padding:10px 16px;border-radius:10px;background:rgba(28,42,78,.86)}.workspace-tabs button[aria-selected=true],.admin-tabs button[aria-selected=true]{background:#536bc3;color:#fff}.workspace-panel[hidden],.admin-subpanel[hidden]{display:none!important}.workspace-panel#workspace-home{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}#workspace-home #welcomePanel{grid-column:1/-1;margin:0}.home-feature{display:flex;flex-direction:column;justify-content:space-between;min-height:145px}.home-feature p{color:#b7c1df;line-height:1.5}.settings-layout{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}#workspace-settings .star-settings{display:block;padding:18px}#workspace-settings .star-settings summary{font-size:18px;font-weight:700;background:transparent;border:0;padding:0 0 12px}#workspace-settings .settings-menu{position:static;width:100%;box-shadow:none;border:0;padding:8px 0;background:transparent}#workspace-settings .settings-menu select{max-width:100%}.admin-tabs{position:sticky;top:8px;z-index:3;padding:8px;background:#0b1228e8;border:1px solid #344368;border-radius:12px}#userSearch{width:min(420px,100%);margin:8px 0 14px}#userList{padding-left:22px}#userList>li{padding:12px;margin:8px 0;background:#0b142c66;border:1px solid #52628b55;border-radius:10px;overflow-wrap:anywhere}.nav-icon-button{width:42px;height:42px;display:inline-grid;place-items:center;padding:0;margin:0;font-size:20px;border-radius:12px}.authenticated .card{backdrop-filter:none}@media(max-width:640px){.authenticated .container{width:100%;padding:16px 12px 30px}.workspace-tabs button,.admin-tabs button{flex:1 1 auto}.admin-tabs{top:0}}
   </style>
 </head>
 <body class="logged-out">
@@ -127,6 +128,7 @@
     </details>
     <a href="/ai"><button class="games-nav-button" type="button">AI</button></a>
     <a href="/games"><button class="games-nav-button" type="button">Games</button></a>
+    <button id="settingsTabButton" class="nav-icon-button" type="button" aria-label="Open settings" title="Settings">⚙</button>
   </div>
 </nav>
 
@@ -147,6 +149,7 @@
     <h2>You're logged in</h2>
     <p class="notice" id="welcomeMessage">Welcome to the dashboard.</p>
   </div>
+  <div id="workspace" class="workspace" hidden><div class="workspace-tabs" role="tablist" aria-label="Dashboard sections"><button type="button" data-workspace-tab="home" role="tab" aria-selected="true">Overview</button><button type="button" data-workspace-tab="admin" id="adminWorkspaceTab" role="tab" aria-selected="false" hidden>Admin</button></div><section id="workspace-home" class="workspace-panel" role="tabpanel"></section><section id="workspace-settings" class="workspace-panel settings-layout" role="tabpanel" hidden></section><section id="workspace-admin" class="workspace-panel" role="tabpanel" hidden><div class="admin-tabs" role="tablist" aria-label="Admin tools"><button type="button" data-admin-tab="codes" aria-selected="true">Access codes</button><button type="button" data-admin-tab="activity" aria-selected="false">Login activity</button><button type="button" data-admin-tab="security" aria-selected="false">Security & bans</button><button type="button" data-admin-tab="ideas" aria-selected="false">Ideas inbox</button></div><section id="admin-subtab-codes" class="admin-subpanel"></section><section id="admin-subtab-activity" class="admin-subpanel" hidden></section><section id="admin-subtab-security" class="admin-subpanel" hidden></section><section id="admin-subtab-ideas" class="admin-subpanel" hidden></section></section></div>
 
   <section class="card" id="miniWindowSettings" style="display:none" aria-labelledby="miniWindowTitle">
     <h2 id="miniWindowTitle">Superstar Mini Window</h2>
@@ -188,6 +191,7 @@
     <button id="saveDefaultPermissions" type="button">Save default permissions</button>
     <p class="notice" id="defaultPermissionsStatus" role="status"></p>
     <h2>User List</h2>
+    <input id="userSearch" type="search" placeholder="Search access codes, names, or roles…" aria-label="Search users">
     <ul id="userList"></ul>
   </div>
 
@@ -433,8 +437,12 @@ function startAccountSessionHeartbeat(sessionToken) {
   }, 5000);
 }
 
+function setupWorkspace(){const w=document.getElementById('workspace');if(w.dataset.ready==='1')return;w.dataset.ready='1';w.hidden=false;const home=document.getElementById('workspace-home'),settings=document.getElementById('workspace-settings');const move=(id,target)=>{const el=document.getElementById(id);if(el)target.appendChild(el);};move('welcomePanel',home);const install=document.querySelector('.container > p.notice');if(install)home.appendChild(install);const add=(title,description,url,label)=>{const card=document.createElement('article');card.className='card home-feature';const h=document.createElement('h2'),p=document.createElement('p'),a=document.createElement('a'),b=document.createElement('button');h.textContent=title;p.textContent=description;a.href=url;b.type='button';b.textContent=label;a.appendChild(b);card.append(h,p,a);home.appendChild(card);};add('Superstar AI','Ask questions, get explanations, and brainstorm.','/ai','Open AI');add('Games','Browse the games library.','/games','Browse games');add('Browser extension','Use Superstar tools while browsing.','/install','Install extension');move('miniWindowSettings',settings);move('cookieSettingsLink',settings);const star=document.querySelector('.star-settings');const appearance=document.createElement('section');appearance.className='card';appearance.innerHTML='<h2>Appearance</h2><p class="notice">Personalize your theme and animated background.</p>';if(star)appearance.appendChild(star);settings.appendChild(appearance);const note=document.createElement('p');note.className='notice';note.textContent='Extension, quiz-answer, and appearance preferences are here.';settings.prepend(note);move('adminPanel',document.getElementById('admin-subtab-codes'));move('loginPanel',document.getElementById('admin-subtab-activity'));move('bansPanel',document.getElementById('admin-subtab-security'));move('ideasAdminPanel',document.getElementById('admin-subtab-ideas'));if(role==='admin')document.getElementById('adminWorkspaceTab').hidden=false;else document.getElementById('workspace-admin').remove();document.querySelectorAll('[data-workspace-tab]').forEach(b=>b.addEventListener('click',()=>setWorkspaceTab(b.dataset.workspaceTab)));document.getElementById('settingsTabButton').addEventListener('click',()=>setWorkspaceTab('settings'));document.querySelectorAll('[data-admin-tab]').forEach(b=>b.addEventListener('click',()=>setAdminTab(b.dataset.adminTab)));const search=document.getElementById('userSearch');if(search)search.addEventListener('input',()=>{const q=search.value.trim().toLowerCase();document.querySelectorAll('#userList>li').forEach(li=>li.hidden=!!q&&!(li.dataset.search||'').includes(q));});setWorkspaceTab('home');}
+function setWorkspaceTab(name){if(name==='admin'&&role!=='admin')return;document.querySelectorAll('[data-workspace-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.workspaceTab===name)));['home','settings','admin'].forEach(t=>{const el=document.getElementById('workspace-'+t);if(el)el.hidden=t!==name;});document.getElementById('settingsTabButton').setAttribute('aria-pressed',String(name==='settings'));if(name==='admin')setAdminTab('codes');}
+function setAdminTab(name){if(role!=='admin')return;document.querySelectorAll('[data-admin-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.adminTab===name)));['codes','activity','security','ideas'].forEach(t=>document.getElementById('admin-subtab-'+t).hidden=t!==name);}
 function showAuthenticatedDashboard(session, remembered = false) {
   role = session.role;
+  setupWorkspace();
   startAccountSessionHeartbeat(session.sessionToken);
   adminToken = session.adminToken || "";
   window.postMessage({ source: "superstar-site", type: "SET_SESSION", sessionToken: session.sessionToken }, window.location.origin);
@@ -539,8 +547,8 @@ function showAdminPanel() {
 function startAdminLoginPolling() {
   if (adminLoginPoll) clearInterval(adminLoginPoll);
   adminLoginPoll = setInterval(() => {
-    if (role === "admin" && document.visibilityState === "visible") loadLogins(true);
-  }, 4000);
+    if (role === "admin" && document.visibilityState === "visible" && !document.getElementById("admin-subtab-activity").hidden) loadLogins(true);
+  }, 15000);
 }
 async function loadStorageStatus() {
   const element = document.getElementById("storageStatus");
