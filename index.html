@@ -168,6 +168,10 @@
     <p class="notice">Leave the field blank for a random code. Custom codes use 4-32 letters, numbers, hyphens, or underscores.</p>
     <div id="newCode"></div>
 
+    <h2>Default guest access</h2>
+    <p class="notice">New guest codes inherit these settings. Existing guests keep their individual settings.</p>
+    <div id="defaultGuestAccess"></div>
+    <p class="notice" id="guestAccessStatus" role="status"></p>
     <h2>User List</h2>
     <ul id="userList"></ul>
   </div>
@@ -378,6 +382,51 @@ document.getElementById("generateCodeForm").addEventListener("submit", event => 
   generateCode();
 });
 
+const GUEST_ACCESS_LABELS = {
+  dashboard: "Dashboard", games: "Games tab", extension: "Extension tab / mini-window",
+  ai: "AI assistant", ideas: "Feature ideas"
+};
+function makeGuestAccessEditor(access, save) {
+  const wrap = document.createElement("details"); wrap.style.cssText = "margin:10px 0;padding:10px;border:1px solid #5365a5;border-radius:9px";
+  const summary = document.createElement("summary"); summary.textContent = "Guest section permissions";
+  const controls = {}, body = document.createElement("div"); body.style.cssText = "display:flex;flex-wrap:wrap;gap:8px;margin-top:10px";
+  for (const [key,label] of Object.entries(GUEST_ACCESS_LABELS)) {
+    const item = document.createElement("label"); item.style.cssText = "display:inline-flex;gap:5px;align-items:center";
+    const input = document.createElement("input"); input.type = "checkbox"; input.checked = access?.[key] !== false; controls[key] = input;
+    item.append(input, document.createTextNode(label)); body.appendChild(item);
+  }
+  const button = document.createElement("button"); button.type = "button"; button.textContent = "Save section access";
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    try { await save(Object.fromEntries(Object.entries(controls).map(([key,input]) => [key,input.checked]))); button.textContent = "Saved"; }
+    catch (error) { alert(error.message || "Could not save guest access."); button.textContent = "Retry save"; }
+    finally { button.disabled = false; }
+  });
+  body.appendChild(button); wrap.append(summary,body); return wrap;
+}
+async function saveDefaultGuestAccess(access) {
+  const response = await adminFetch("/admin/guest-access/defaults", { method:"PUT", headers:adminHeaders(true), body:JSON.stringify({access}) });
+  if (!response.ok) throw new Error((await response.json()).error || "Could not save defaults.");
+  document.getElementById("guestAccessStatus").textContent = "Defaults saved. Existing guest accounts were not changed.";
+}
+async function loadDefaultGuestAccess() {
+  const response = await adminFetch("/admin/guest-access", { headers:adminHeaders() });
+  if (!response.ok) throw new Error("Could not load guest access defaults.");
+  const data = await response.json();
+  document.getElementById("defaultGuestAccess").replaceChildren(makeGuestAccessEditor(data.defaults, saveDefaultGuestAccess));
+}
+async function applyGuestAccess(session) {
+  if (session.role !== "guest") return;
+  const response = await fetch("/session/me", { headers:{ "Authorization": "Bearer " + session.sessionToken }, cache:"no-store" });
+  if (!response.ok) throw new Error("Your guest access has changed. Please sign in again.");
+  const data = await response.json(), access = data.access || {};
+  session.access = access;
+  try { sessionStorage.setItem("superstar-session", JSON.stringify(session)); } catch {}
+  for (const [key,selector] of [["games","a[href='/games']"],["extension","#miniWindowSettings"],["ideas","footer a[href='/ideas']"]]) {
+    const node = document.querySelector(selector); if (node) node.hidden = access[key] === false;
+  }
+  if (access.dashboard === false) document.querySelector(".container").replaceChildren(Object.assign(document.createElement("h2"), { textContent:"Dashboard access disabled by administrator" }));
+}
 function showAuthenticatedDashboard(session, remembered = false) {
   role = session.role;
   adminToken = session.adminToken || "";
@@ -388,6 +437,7 @@ function showAuthenticatedDashboard(session, remembered = false) {
   document.getElementById("welcomePanel").style.display = "block";
   document.getElementById("miniWindowSettings").style.display = "block";
   syncMiniWindowSettings();
+  if (role === "guest") applyGuestAccess(session).catch(error => { document.getElementById("welcomeMessage").textContent = error.message; document.getElementById("loginCard").style.display = "block"; });
   document.getElementById("welcomeMessage").textContent = remembered
     ? "Signed in as admin on this remembered device. Enjoy the stars."
     : `Signed in as ${role}. Enjoy the stars.`;
@@ -448,7 +498,7 @@ function showAdminPanel() {
   document.getElementById("loginPanel").style.display="block";
   document.getElementById("bansPanel").style.display="block";
   document.getElementById("ideasAdminPanel").style.display = "block";
-  Promise.all([loadUsers(), loadLogins(), loadBans(), loadIdeas()]);
+  Promise.all([loadUsers(), loadLogins(), loadBans(), loadIdeas(), loadDefaultGuestAccess()]);
 }
 
 async function generateCode() {
@@ -503,6 +553,22 @@ async function loadUsers() {
     saveNameButton.textContent = "Save name";
     saveNameButton.addEventListener("click", () => saveUserName(code, nameInput.value));
     li.append(nameLabel, nameInput, saveNameButton);
+    if (user.role === "guest") {
+      const status = document.createElement("button"); status.type = "button";
+      status.textContent = user.disabled ? "Re-enable account" : "Disable account"; status.style.margin = "6px";
+      status.addEventListener("click", async () => {
+        const disabled = !user.disabled;
+        if (!confirm(disabled ? "Disable this guest now? Their active sessions will be revoked." : "Re-enable this guest account?")) return;
+        const response = await adminFetch("/admin/guest-access/" + encodeURIComponent(code) + "/status", { method:"PUT", headers:adminHeaders(true), body:JSON.stringify({disabled}) });
+        if (!response.ok) return alert((await response.json()).error || "Could not update account status.");
+        loadUsers();
+      });
+      const editor = makeGuestAccessEditor(user.access, async access => {
+        const response = await adminFetch("/admin/guest-access/" + encodeURIComponent(code), { method:"PUT", headers:adminHeaders(true), body:JSON.stringify({access}) });
+        if (!response.ok) throw new Error((await response.json()).error || "Could not save guest access.");
+      });
+      li.append(document.createTextNode(user.disabled ? " · DISABLED " : " · ENABLED "), status, editor);
+    }
     list.appendChild(li);
   }
 }
