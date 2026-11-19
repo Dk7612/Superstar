@@ -17,6 +17,7 @@ app.get("/physics3d.js", (_req, res) => res.sendFile(path.join(__dirname, "physi
 app.get("/dropper3d.js", (_req, res) => res.sendFile(path.join(__dirname, "dropper3d.js")));
 app.get("/favicon.png", (_req, res) => res.sendFile(path.join(__dirname, "favicon.png")));
 app.get("/ideas", (_req, res) => res.sendFile(path.join(__dirname, "ideas.html")));
+app.get("/install", (_req, res) => res.sendFile(path.join(__dirname, "install.html")));
 
 const adminCode = process.env.ADMIN_CODE || process.env.SUPERADMIN_CODE;
 const userCode = process.env.USER_CODE;
@@ -82,6 +83,7 @@ function loadPersistentState() {
         (saved.gameSaves !== undefined && (!saved.gameSaves || typeof saved.gameSaves !== "object" || Array.isArray(saved.gameSaves))) ||
         (saved.accountNames !== undefined && (!saved.accountNames || typeof saved.accountNames !== "object" || Array.isArray(saved.accountNames))) ||
         (saved.guestPermissions !== undefined && (!saved.guestPermissions || typeof saved.guestPermissions !== "object" || Array.isArray(saved.guestPermissions))) ||
+        (saved.extensionPreferences !== undefined && (!saved.extensionPreferences || typeof saved.extensionPreferences !== "object" || Array.isArray(saved.extensionPreferences))) ||
         (saved.defaultGuestPermissions !== undefined && !validPermissions(saved.defaultGuestPermissions))) {
       throw new Error("Stored service data has an invalid format");
     }
@@ -130,6 +132,16 @@ function loadPersistentState() {
           Object.keys(permissions).some(key => !PERMISSION_KEYS.includes(key)) ||
           Object.values(permissions).some(value => typeof value !== "boolean")) throw new Error("Stored guest permissions have an invalid format");
       guestPermissions[code] = { ...permissions };
+    }
+    const extensionPreferences = Object.create(null);
+    for (const [code, preferences] of Object.entries(saved.extensionPreferences || {})) {
+      if (!code || code.length > 200 || !preferences || typeof preferences !== "object" || Array.isArray(preferences) ||
+          Object.keys(preferences).some(key => !["miniWindowMode", "quickReply"].includes(key)) ||
+          (preferences.miniWindowMode !== undefined && !["ai-helper", "full-site"].includes(preferences.miniWindowMode)) ||
+          (preferences.quickReply !== undefined && typeof preferences.quickReply !== "boolean")) {
+        throw new Error("Stored extension preferences have an invalid format");
+      }
+      extensionPreferences[code] = { ...preferences };
     }
     const accountNames = Object.create(null);
     for (const [code, name] of Object.entries(saved.accountNames || {})) {
@@ -181,6 +193,7 @@ function loadPersistentState() {
       lockedDevices,
       gameSaves,
       accountNames,
+      extensionPreferences,
       guestPermissions,
       defaultGuestPermissions,
       trustedAdminDevices,
@@ -208,11 +221,12 @@ const bannedDevices = persistentState.bannedDevices;
 const bannedIps = persistentState.bannedIps;
 const gameSaves = persistentState.gameSaves;
 const accountNames = persistentState.accountNames;
+const extensionPreferences = persistentState.extensionPreferences;
 const guestPermissions = persistentState.guestPermissions;
 let defaultGuestPermissions = persistentState.defaultGuestPermissions;
 const trustedAdminDevices = persistentState.trustedAdminDevices;
 for (const session of persistentState.authSessions) {
-  sessionTokens.set(session.tokenHash, { code: session.code, expiresAt: session.expiresAt });
+  sessionTokens.set(session.tokenHash, { code: session.code, deviceID: session.deviceID || users[session.code]?.lockedDevice || "", ip: session.ip || "", expiresAt: session.expiresAt });
 }
 
 function savePersistentState() {
@@ -232,12 +246,15 @@ function savePersistentState() {
       .map(([code, user]) => ({ code, deviceID: user.lockedDevice })),
     gameSaves,
     accountNames,
+    extensionPreferences,
     guestPermissions,
     defaultGuestPermissions,
     trustedAdminDevices,
     authSessions: Array.from(sessionTokens, ([tokenHash, session]) => ({
       tokenHash,
       code: session.code,
+      deviceID: session.deviceID || "",
+      ip: session.ip || "",
       expiresAt: session.expiresAt
     }))
   }, null, 2), { encoding: "utf8", mode: 0o600 });
@@ -248,10 +265,23 @@ function normalizeIp(ip) {
   return ip && ip.startsWith("::ffff:") ? ip.slice(7) : ip;
 }
 
+function latestLoginForCode(code) {
+  for (let index = loginHistory.length - 1; index >= 0; index--) {
+    if (loginHistory[index]?.code === code) return loginHistory[index];
+  }
+  return null;
+}
+function sessionIsBanned(session, req) {
+  const latest = latestLoginForCode(session.code);
+  const deviceID = session.deviceID || latest?.deviceID || users[session.code]?.lockedDevice || "";
+  const ip = normalizeIp(session.ip || latest?.ip || "");
+  return (deviceID && bannedDevices.has(deviceID)) || (ip && bannedIps.has(ip)) || bannedIps.has(normalizeIp(req.ip));
+}
+
 function requireAdmin(req, res, next) {
   const token = req.get("authorization")?.replace(/^Bearer\s+/i, "");
   const session = token && sessionTokens.get(hashTrustedToken(token));
-  if (!session || session.expiresAt <= Date.now() || session.code !== adminCode || users[session.code]?.role !== "admin") {
+  if (!session || session.expiresAt <= Date.now() || session.code !== adminCode || users[session.code]?.role !== "admin" || sessionIsBanned(session, req)) {
     return res.status(403).json({ error: "Admin access required" });
   }
   next();
@@ -259,9 +289,15 @@ function requireAdmin(req, res, next) {
 
 function requireSession(req, res, next) {
   const token = req.get("authorization")?.replace(/^Bearer\s+/i, "");
-  const session = token && sessionTokens.get(hashTrustedToken(token));
+  const tokenHash = token ? hashTrustedToken(token) : "";
+  const session = token && sessionTokens.get(tokenHash);
   if (!session || session.expiresAt <= Date.now() || !users[session.code]) {
     return res.status(401).json({ error: "Sign in again to sync game progress" });
+  }
+  if (sessionIsBanned(session, req)) {
+    sessionTokens.delete(tokenHash);
+    try { savePersistentState(); } catch (error) { console.error("Could not persist revoked session:", error); }
+    return res.status(403).json({ error: "This device or IP address is banned", banned: true });
   }
   req.userCode = session.code;
   next();
@@ -293,10 +329,10 @@ function hashTrustedToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
-function issueSessionTokens(code) {
+function issueSessionTokens(code, req, deviceID = "") {
   const sessionToken = crypto.randomBytes(32).toString("hex");
   const tokenHash = hashTrustedToken(sessionToken);
-  const session = { code, expiresAt: Date.now() + SESSION_MAX_AGE };
+  const session = { code, deviceID, ip: normalizeIp(req?.ip) || "", expiresAt: Date.now() + SESSION_MAX_AGE };
   sessionTokens.set(tokenHash, session);
   try {
     savePersistentState();
@@ -359,6 +395,16 @@ function revokeTrustedAdminCookie(req, res) {
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true });
+});
+app.get("/admin/storage-status", requireAdmin, (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({
+    dataDirectory,
+    dataDirectoryEnvironmentConfigured: Boolean(process.env.DATA_DIR),
+    note: process.env.DATA_DIR
+      ? "DATA_DIR is set. Confirm that this exact path is mounted as a persistent Render disk."
+      : "DATA_DIR is not set; the default app directory may be ephemeral across redeploys."
+  });
 });
 
 app.post("/session/trusted-device/enroll", requireAdmin, (req, res) => {
@@ -439,7 +485,7 @@ app.get("/session/restore", (req, res) => {
     maxAge: TRUSTED_ADMIN_MAX_AGE
   });
   try {
-    res.json({ ok: true, ...issueSessionTokens(adminCode), remembered: true });
+    res.json({ ok: true, ...issueSessionTokens(adminCode, req, deviceID), remembered: true });
   } catch {
     res.status(500).json({ ok: false, error: "Could not save login session" });
   }
@@ -448,6 +494,30 @@ app.get("/session/restore", (req, res) => {
 app.get("/account/permissions", requireSession, (req, res) => {
   res.set("Cache-Control", "no-store");
   res.json(effectivePermissions(req.userCode));
+});
+const DEFAULT_EXTENSION_PREFERENCES = Object.freeze({ miniWindowMode: "ai-helper", quickReply: true });
+function validExtensionPreferences(value) {
+  return !!value && typeof value === "object" && !Array.isArray(value) &&
+    Object.keys(value).every(key => ["miniWindowMode", "quickReply"].includes(key)) &&
+    (value.miniWindowMode === undefined || ["ai-helper", "full-site"].includes(value.miniWindowMode)) &&
+    (value.quickReply === undefined || typeof value.quickReply === "boolean");
+}
+app.get("/account/extension-preferences", requireFeaturePermission("extension"), (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ ...DEFAULT_EXTENSION_PREFERENCES, ...(extensionPreferences[req.userCode] || {}) });
+});
+app.put("/account/extension-preferences", requireFeaturePermission("extension"), (req, res) => {
+  const updates = req.body?.preferences;
+  if (!validExtensionPreferences(updates) || !Object.keys(updates).length) return res.status(400).json({ error: "Invalid extension preferences." });
+  const previous = extensionPreferences[req.userCode];
+  extensionPreferences[req.userCode] = { ...(previous || {}), ...updates };
+  try { savePersistentState(); } catch (error) {
+    if (previous === undefined) delete extensionPreferences[req.userCode];
+    else extensionPreferences[req.userCode] = previous;
+    console.error("Could not save extension preferences:", error);
+    return res.status(500).json({ error: "Could not save extension preferences." });
+  }
+  res.json({ ok: true, preferences: { ...DEFAULT_EXTENSION_PREFERENCES, ...extensionPreferences[req.userCode] } });
 });
 
 app.get("/game-save", requireFeaturePermission("games"), (req, res) => {
@@ -555,7 +625,7 @@ app.post("/login", (req, res) => {
   try {
     res.json({
       ok: true,
-      ...issueSessionTokens(code),
+      ...issueSessionTokens(code, req, deviceID),
       remembered: user.role === "admin" && body.rememberDevice === true
     });
   } catch {
@@ -705,14 +775,25 @@ app.post("/admin/bans", requireAdmin, (req, res) => {
     return res.status(400).json({ error: "Invalid ban type" });
   }
   bannedSet.add(normalizedValue);
+  const revoked = [];
+  for (const [tokenHash, session] of sessionTokens) {
+    const latest = latestLoginForCode(session.code);
+    const sessionDevice = session.deviceID || latest?.deviceID || users[session.code]?.lockedDevice || "";
+    const sessionIp = normalizeIp(session.ip || latest?.ip || "");
+    if ((type === "device" && sessionDevice === normalizedValue) || (type === "ip" && sessionIp === normalizedValue)) {
+      revoked.push([tokenHash, session]);
+      sessionTokens.delete(tokenHash);
+    }
+  }
   try {
     savePersistentState();
   } catch (error) {
     bannedSet.delete(normalizedValue);
+    for (const [tokenHash, session] of revoked) sessionTokens.set(tokenHash, session);
     console.error("Could not save ban:", error);
     return res.status(500).json({ error: "Could not save ban" });
   }
-  res.json({ ok: true });
+  res.json({ ok: true, revokedSessions: revoked.length });
 });
 
 app.delete("/admin/bans", requireAdmin, (req, res) => {
