@@ -236,7 +236,7 @@
     });
   }
   shell.addEventListener("focusout", e => {
-    if (!shell.contains(e.relatedTarget)) scheduleDismiss();
+    if (!shell.contains(e.relatedTarget) && !pointerInside) scheduleDismiss();
   });
   root.getElementById("options").addEventListener("click",e=>{
     const button=e.target.closest("[data-view]"); if(!button)return;
