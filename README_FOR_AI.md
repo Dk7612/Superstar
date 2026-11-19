@@ -316,3 +316,14 @@ The following captures the known requests and decisions from the project history
 - No signing identity or update URL changes: retain the existing persistent `EXTENSION_PRIVATE_KEY_B64` secret and stable update feed.
 - The v1.2.5 CRX includes the corrected permission-check startup order; the signed extension release workflow must complete successfully before asking users to update.
 - Verification: confirm the workflow publishes `extension-v1.2.5`, `Superstar.crx`, and `updates.xml`; then test the star in Opera GX after the signed update and a reload of the Superstar website tab.
+
+
+## Gimkit and Blooket question helper
+
+- The extension shows a Question Helper option only on Gimkit and Blooket tabs.
+- The helper is opt-in: the user clicks Capture visible text, reviews/edits the question and choices, then clicks Suggest answer.
+- Capture reads visible rendered page text and visible answer-like controls only; it does not inspect hidden state, network traffic, private APIs, or answer keys.
+- Suggestions use the existing authenticated `POST /api/ai/answer` endpoint, which enforces the user's AI feature permission and server-side Gemini configuration/rate limit.
+- The helper displays the suggested choice, explanation, and confidence. It never auto-clicks an answer, submits a response, changes game state, or interacts with other players.
+- The saved Quick replies preference is sent to the answer endpoint.
+- Verification: run `node --check browser-extension/global-player.js`, parse `browser-extension/manifest.json`, test the helper appears only on `gimkit.com` / `blooket.com`, test capture/edit/analyze with a signed-in account, test missing session and disabled AI permission, and confirm no answer is clicked or submitted.
