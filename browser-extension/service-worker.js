@@ -76,6 +76,15 @@ chrome.action.onClicked.addListener(() => {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || typeof message.type !== "string") return false;
 
+  if (message.type === "CAPTURE_VISIBLE_TAB") {
+    const windowId = _sender?.tab?.windowId;
+    if (typeof windowId !== "number") { sendResponse({ ok: false, error: "Could not identify the active game tab." }); return false; }
+    chrome.tabs.captureVisibleTab(windowId, { format: "jpeg", quality: 78 })
+      .then(dataUrl => sendResponse({ ok: true, dataUrl }))
+      .catch(error => sendResponse({ ok: false, error: error.message || "Screenshot capture failed." }));
+    return true;
+  }
+
   if (message.type === "SET_SESSION") {
     if (typeof message.sessionToken !== "string" || !/^[a-f0-9]{64}$/i.test(message.sessionToken)) {
       sendResponse({ ok: false }); return false;
