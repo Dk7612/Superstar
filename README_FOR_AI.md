@@ -378,3 +378,5 @@ The following captures the known requests and decisions from the project history
 
 - Admin quality-of-life: newly generated guest codes have a one-click copy action; resetting device locks and removing bans require confirmation, and reset failures are reported instead of silently refreshing the list.
 - Admin navigation and workspace visibility are gated by the verified admin session role. The `/admin` route keeps the login form available when signed out and does not render admin panels for guests.
+
+- The starfield also stops when the dashboard hides its canvas on the signed-out screen and restarts when the authenticated layout becomes visible; this avoids animation work behind the login screen.
