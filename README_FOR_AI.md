@@ -340,7 +340,7 @@ The following captures the known requests and decisions from the project history
 ## Screenshot-based quiz questions — extension v1.2.8
 
 - The Gimkit/Blooket helper captures only the currently visible tab viewport after temporarily hiding the Superstar overlay, so the overlay does not cover the question.
-- Screenshot capture is user-initiated and handled by the extension service worker using `chrome.tabs.captureVisibleTab`; the extension requests the `tabs` permission.
+- Screenshot capture is user-initiated and handled by the extension service worker using `chrome.tabs.captureVisibleTab`; the existing `<all_urls>` host permission authorizes capture; no new broad permission is added.
 - The helper previews the screenshot and sends it to the authenticated `/api/ai/answer` endpoint. Gemini receives the image as inline image data and is instructed to read only the main question and answer choices, ignoring unrelated page text and UI.
 - Manual question and answer-choice text is optional when a screenshot is attached. The old whole-page `document.body.innerText` capture was removed.
 - The server accepts JPEG, PNG, or WebP data URLs under 1.8 MB and uses a 3 MB JSON request limit. Images are sent to Gemini through the server; the Gemini API key is never exposed to the extension.
