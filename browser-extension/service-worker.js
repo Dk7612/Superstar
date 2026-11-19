@@ -5,6 +5,33 @@ async function getMode() {
   const stored = await chrome.storage.local.get("miniWindowMode");
   return stored.miniWindowMode === "full-site" ? "full-site" : DEFAULT_MODE;
 }
+async function syncPreferencesFromAccount() {
+  const stored = await chrome.storage.local.get("superstarSessionToken");
+  if (!stored.superstarSessionToken) return false;
+  const response = await fetch(SITE_URL + "account/extension-preferences", {
+    headers: { "Authorization": "Bearer " + stored.superstarSessionToken }, cache: "no-store"
+  });
+  if (!response.ok) return false;
+  const prefs = await response.json();
+  await chrome.storage.local.set({
+    miniWindowMode: prefs.miniWindowMode === "full-site" ? "full-site" : DEFAULT_MODE,
+    quickReply: prefs.quickReply !== false
+  });
+  return true;
+}
+async function savePreferencesToAccount(updates) {
+  const stored = await chrome.storage.local.get("superstarSessionToken");
+  if (!stored.superstarSessionToken) return false;
+  const response = await fetch(SITE_URL + "account/extension-preferences", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + stored.superstarSessionToken },
+    body: JSON.stringify({ preferences: updates }), cache: "no-store"
+  });
+  if (!response.ok) return false;
+  const data = await response.json();
+  await chrome.storage.local.set({ miniWindowMode: data.preferences.miniWindowMode, quickReply: data.preferences.quickReply });
+  return true;
+}
 
 async function openMiniWindow() {
   const stored = await chrome.storage.local.get("superstarSessionToken");
@@ -38,7 +65,7 @@ async function openMiniWindow() {
 chrome.runtime.onInstalled.addListener(async () => {
   const stored = await chrome.storage.local.get("miniWindowMode");
   if (!stored.miniWindowMode) {
-    await chrome.storage.local.set({ miniWindowMode: DEFAULT_MODE });
+    await chrome.storage.local.set({ miniWindowMode: DEFAULT_MODE, quickReply: true });
   }
 });
 
@@ -54,21 +81,33 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       sendResponse({ ok: false }); return false;
     }
     chrome.storage.local.set({ superstarSessionToken: message.sessionToken })
-      .then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
+      .then(async () => {
+        await syncPreferencesFromAccount();
+        sendResponse({ ok: true });
+      }).catch(() => sendResponse({ ok: false }));
     return true;
   }
 
   if (message.type === "GET_MINI_MODE") {
-    getMode().then(mode => sendResponse({ ok: true, mode }))
-      .catch(() => sendResponse({ ok: false, mode: DEFAULT_MODE }));
+    syncPreferencesFromAccount().catch(() => {});
+    chrome.storage.local.get(["miniWindowMode", "quickReply"]).then(stored =>
+      sendResponse({ ok: true, mode: stored.miniWindowMode === "full-site" ? "full-site" : DEFAULT_MODE, quickReply: stored.quickReply !== false })
+    ).catch(() => sendResponse({ ok: false, mode: DEFAULT_MODE }));
     return true;
   }
 
   if (message.type === "SET_MINI_MODE") {
     const mode = message.mode === "full-site" ? "full-site" : "ai-helper";
-    chrome.storage.local.set({ miniWindowMode: mode })
-      .then(() => sendResponse({ ok: true, mode }))
+    savePreferencesToAccount({ miniWindowMode: mode })
+      .then(ok => sendResponse({ ok, mode }))
       .catch(() => sendResponse({ ok: false, mode }));
+    return true;
+  }
+  if (message.type === "SET_QUICK_REPLY") {
+    const enabled = message.enabled === true;
+    savePreferencesToAccount({ quickReply: enabled })
+      .then(ok => sendResponse({ ok, enabled }))
+      .catch(() => sendResponse({ ok: false, enabled }));
     return true;
   }
 
