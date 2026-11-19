@@ -31,6 +31,7 @@
     canvas.width = Math.round(width * pixelRatio);
     canvas.height = Math.round(height * pixelRatio);
     context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    context.lineCap = "round";
     stars = Array.from({ length: Math.min(150, Math.ceil(width * height / 8500)) }, () => ({
       x: Math.random() * width,
       y: Math.random() * height,
@@ -76,10 +77,7 @@
 
       const tailX = star.x - directionX * star.trail;
       const tailY = star.y - directionY * star.trail;
-      const gradient = context.createLinearGradient(tailX, tailY, star.x, star.y);
-      gradient.addColorStop(0, "rgba(205, 220, 255, 0)");
-      gradient.addColorStop(1, `rgba(235, 242, 255, ${star.opacity})`);
-      context.strokeStyle = gradient;
+      context.strokeStyle = `rgba(235, 242, 255, ${star.opacity * 0.72})`;
       context.lineWidth = star.size;
       context.beginPath();
       context.moveTo(tailX, tailY);
@@ -135,6 +133,10 @@
   reducedMotion.addEventListener("change", () => {
     lastFrameTime = 0;
     draw();
+    if (!reducedMotion.matches && document.visibilityState === "visible" && !animationActive) {
+      animationActive = true;
+      window.requestAnimationFrame(animate);
+    }
   });
   applySettings();
   resize();
