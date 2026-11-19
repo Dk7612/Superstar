@@ -100,6 +100,7 @@
   const launcher = root.getElementById("launcher");
   const history = [];
   let open = false;
+  let activeView = null;
   let waiting = false;
   let focusInterval = null;
   let focusSeconds = 25 * 60;
@@ -114,15 +115,16 @@
   }
   function clearFocusTimer() { if (focusInterval) clearInterval(focusInterval); focusInterval = null; }
   function showMenu() {
-    open = true; shell.classList.add("open"); menu.hidden = false; view.hidden = true;
+    open = true; activeView = null; shell.classList.add("open"); menu.hidden = false; view.hidden = true;
     launcher.setAttribute("aria-expanded", "true");
   }
   function hideMenu() {
-    open = false; shell.classList.remove("open"); menu.hidden = true; view.hidden = true;
+    open = false; activeView = null; shell.classList.remove("open"); menu.hidden = true; view.hidden = true;
     stopGame();
     launcher.setAttribute("aria-expanded", "false");
   }
   function showView(name) {
+    activeView = name;
     menu.hidden = true; view.hidden = false; viewbody.replaceChildren();
     stopGame();
     if (name === "ai") renderAI();
@@ -225,12 +227,15 @@
   function formatTime(s){return Math.floor(s/60).toString().padStart(2,"0")+":"+Math.floor(s%60).toString().padStart(2,"0");}
 
   launcher.addEventListener("pointerenter", e => {
-    if (e.pointerType === "mouse") showMenu();
+    if (e.pointerType === "mouse" && !open) showMenu();
   });
-  launcher.addEventListener("click",()=>{if(!open)showMenu();});
+  launcher.addEventListener("click",()=>{
+    if (activeView === "focus") hideMenu();
+    else if (!open) showMenu();
+  });
   // Keep the menu open while the pointer moves away; dismiss only on an outside click.
   document.addEventListener("click", e => {
-    if (open && !e.composedPath().includes(host)) hideMenu();
+    if (open && activeView !== "focus" && !e.composedPath().includes(host)) hideMenu();
   }, true);
   root.getElementById("options").addEventListener("click",e=>{
     const button=e.target.closest("[data-view]"); if(!button)return;
