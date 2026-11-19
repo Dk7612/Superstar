@@ -137,6 +137,10 @@ function loadPersistentState() {
       }
       accountNames[code] = name;
     }
+    const defaultGuestPermissions = { ...ALL_GUEST_PERMISSIONS, ...(saved.defaultGuestPermissions || {}) };
+    for (const code of generatedUserOrder) {
+      if (!guestPermissions[code]) guestPermissions[code] = { ...defaultGuestPermissions };
+    }
     const trustedAdminDevices = [];
     for (const trustedDevice of saved.trustedAdminDevices || []) {
       if (!trustedDevice || typeof trustedDevice.tokenHash !== "string" || !/^[a-f0-9]{64}$/.test(trustedDevice.tokenHash) ||
@@ -177,7 +181,7 @@ function loadPersistentState() {
       gameSaves,
       accountNames,
       guestPermissions,
-      defaultGuestPermissions: { ...ALL_GUEST_PERMISSIONS, ...(saved.defaultGuestPermissions || {}) },
+      defaultGuestPermissions,
       trustedAdminDevices,
       authSessions
     };
