@@ -20,6 +20,16 @@ app.get("/ideas", (_req, res) => res.sendFile(path.join(__dirname, "ideas.html")
 
 const adminCode = process.env.ADMIN_CODE || process.env.SUPERADMIN_CODE;
 const userCode = process.env.USER_CODE;
+const PERMISSION_KEYS = ["dashboard", "games", "extension", "ai", "ideas"];
+const ALL_GUEST_PERMISSIONS = { dashboard: true, games: true, extension: true, ai: true, ideas: true };
+function validPermissions(value) {
+  return !!value && typeof value === "object" && !Array.isArray(value) &&
+    Object.keys(value).every(key => PERMISSION_KEYS.includes(key)) &&
+    PERMISSION_KEYS.every(key => typeof value[key] === "boolean");
+}
+function effectivePermissions(code) {
+  return { ...ALL_GUEST_PERMISSIONS, ...defaultGuestPermissions, ...(guestPermissions[code] || {}) };
+}
 if (!adminCode) {
   throw new Error("Set ADMIN_CODE (or legacy SUPERADMIN_CODE) environment variable");
 }
@@ -69,7 +79,9 @@ function loadPersistentState() {
         (saved.trustedAdminDevices !== undefined && !Array.isArray(saved.trustedAdminDevices)) ||
         (saved.authSessions !== undefined && !Array.isArray(saved.authSessions)) ||
         (saved.gameSaves !== undefined && (!saved.gameSaves || typeof saved.gameSaves !== "object" || Array.isArray(saved.gameSaves))) ||
-        (saved.accountNames !== undefined && (!saved.accountNames || typeof saved.accountNames !== "object" || Array.isArray(saved.accountNames)))) {
+        (saved.accountNames !== undefined && (!saved.accountNames || typeof saved.accountNames !== "object" || Array.isArray(saved.accountNames))) ||
+        (saved.guestPermissions !== undefined && (!saved.guestPermissions || typeof saved.guestPermissions !== "object" || Array.isArray(saved.guestPermissions))) ||
+        (saved.defaultGuestPermissions !== undefined && !validPermissions(saved.defaultGuestPermissions))) {
       throw new Error("Stored service data has an invalid format");
     }
     const generatedUsers = Object.create(null);
@@ -110,6 +122,13 @@ function loadPersistentState() {
         games[game] = validProgress;
       }
       gameSaves[code] = games;
+    }
+    const guestPermissions = Object.create(null);
+    for (const [code, permissions] of Object.entries(saved.guestPermissions || {})) {
+      if (!generatedUsers[code] || !permissions || typeof permissions !== "object" || Array.isArray(permissions) ||
+          Object.keys(permissions).some(key => !PERMISSION_KEYS.includes(key)) ||
+          Object.values(permissions).some(value => typeof value !== "boolean")) throw new Error("Stored guest permissions have an invalid format");
+      guestPermissions[code] = { ...permissions };
     }
     const accountNames = Object.create(null);
     for (const [code, name] of Object.entries(saved.accountNames || {})) {
@@ -157,12 +176,14 @@ function loadPersistentState() {
       lockedDevices,
       gameSaves,
       accountNames,
+      guestPermissions,
+      defaultGuestPermissions: { ...ALL_GUEST_PERMISSIONS, ...(saved.defaultGuestPermissions || {}) },
       trustedAdminDevices,
       authSessions
     };
   } catch (error) {
     if (error.code === "ENOENT") {
-      return { loginHistory: [], bannedDevices: new Set(), bannedIps: new Set(), generatedUsers: Object.create(null), generatedUserOrder: [], lockedDevices: [], gameSaves: Object.create(null), accountNames: Object.create(null), trustedAdminDevices: [], authSessions: [] };
+      return { loginHistory: [], bannedDevices: new Set(), bannedIps: new Set(), generatedUsers: Object.create(null), generatedUserOrder: [], lockedDevices: [], gameSaves: Object.create(null), accountNames: Object.create(null), guestPermissions: Object.create(null), defaultGuestPermissions: { ...ALL_GUEST_PERMISSIONS }, trustedAdminDevices: [], authSessions: [] };
     }
     throw error;
   }
@@ -182,6 +203,8 @@ const bannedDevices = persistentState.bannedDevices;
 const bannedIps = persistentState.bannedIps;
 const gameSaves = persistentState.gameSaves;
 const accountNames = persistentState.accountNames;
+const guestPermissions = persistentState.guestPermissions;
+let defaultGuestPermissions = persistentState.defaultGuestPermissions;
 const trustedAdminDevices = persistentState.trustedAdminDevices;
 for (const session of persistentState.authSessions) {
   sessionTokens.set(session.tokenHash, { code: session.code, expiresAt: session.expiresAt });
@@ -204,6 +227,8 @@ function savePersistentState() {
       .map(([code, user]) => ({ code, deviceID: user.lockedDevice })),
     gameSaves,
     accountNames,
+    guestPermissions,
+    defaultGuestPermissions,
     trustedAdminDevices,
     authSessions: Array.from(sessionTokens, ([tokenHash, session]) => ({
       tokenHash,
@@ -235,6 +260,13 @@ function requireSession(req, res, next) {
   }
   req.userCode = session.code;
   next();
+}
+
+function requireFeaturePermission(feature) {
+  return (req, res, next) => requireSession(req, res, () => {
+    if (users[req.userCode]?.role === "admin" || effectivePermissions(req.userCode)[feature] === true) return next();
+    return res.status(403).json({ error: "This feature is disabled for this access code." });
+  });
 }
 
 function trustedAdminCookieOptions(req) {
@@ -408,12 +440,17 @@ app.get("/session/restore", (req, res) => {
   }
 });
 
-app.get("/game-save", requireSession, (req, res) => {
+app.get("/account/permissions", requireSession, (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json(effectivePermissions(req.userCode));
+});
+
+app.get("/game-save", requireFeaturePermission("games"), (req, res) => {
   res.set("Cache-Control", "no-store");
   res.json({ ...emptyGameSaves(), ...(gameSaves[req.userCode] || {}) });
 });
 
-app.put("/game-save", requireSession, (req, res) => {
+app.put("/game-save", requireFeaturePermission("games"), (req, res) => {
   const { game, progress } = req.body || {};
   const newProgress = validateGameProgress(progress);
   if (!["dropper", "skyfall3d"].includes(game) || !newProgress) {
@@ -444,7 +481,7 @@ app.put("/game-save", requireSession, (req, res) => {
   res.json(games[game]);
 });
 
-app.delete("/game-save/:game", requireSession, (req, res) => {
+app.delete("/game-save/:game", requireFeaturePermission("games"), (req, res) => {
   const { game } = req.params;
   if (!["dropper", "skyfall3d"].includes(game)) {
     return res.status(400).json({ error: "Invalid game" });
@@ -542,11 +579,13 @@ app.post("/generate", requireAdmin, (req, res) => {
     } while (Object.prototype.hasOwnProperty.call(users, code));
   }
   users[code] = { role: "guest", lockedDevice: null };
+  guestPermissions[code] = { ...defaultGuestPermissions };
   generatedUserOrder.push(code);
   try {
     savePersistentState();
   } catch (error) {
     delete users[code];
+    delete guestPermissions[code];
     generatedUserOrder.pop();
     console.error("Could not save generated code:", error);
     return res.status(500).json({ error: "Could not save generated code" });
@@ -557,7 +596,40 @@ app.post("/generate", requireAdmin, (req, res) => {
 app.get("/admin/users", requireAdmin, (_req, res) => {
   res.json(generatedUserOrder
     .filter(code => code !== adminCode && code !== userCode && users[code])
-    .map(code => ({ code, ...users[code], name: accountNames[code] || "" })));
+    .map(code => ({ code, ...users[code], name: accountNames[code] || "", permissions: effectivePermissions(code) })));
+});
+
+app.get("/admin/permissions", requireAdmin, (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ defaults: defaultGuestPermissions });
+});
+app.put("/admin/permissions/defaults", requireAdmin, (req, res) => {
+  const permissions = req.body?.permissions;
+  if (!validPermissions(permissions) || Object.keys(permissions).length !== PERMISSION_KEYS.length)
+    return res.status(400).json({ error: "Provide a boolean value for every guest permission." });
+  const previous = defaultGuestPermissions;
+  defaultGuestPermissions = { ...permissions };
+  try { savePersistentState(); } catch (error) {
+    defaultGuestPermissions = previous;
+    console.error("Could not save default guest permissions:", error);
+    return res.status(500).json({ error: "Could not save default guest permissions." });
+  }
+  res.json({ ok: true, defaults: defaultGuestPermissions });
+});
+app.put("/admin/user-permissions", requireAdmin, (req, res) => {
+  const { code, permissions } = req.body || {};
+  if (typeof code !== "string" || users[code]?.role !== "guest" || !generatedUserOrder.includes(code))
+    return res.status(404).json({ error: "Guest access code not found." });
+  if (!validPermissions(permissions) || Object.keys(permissions).length !== PERMISSION_KEYS.length)
+    return res.status(400).json({ error: "Provide a boolean value for every guest permission." });
+  const previous = guestPermissions[code];
+  guestPermissions[code] = { ...permissions };
+  try { savePersistentState(); } catch (error) {
+    if (previous === undefined) delete guestPermissions[code]; else guestPermissions[code] = previous;
+    console.error("Could not save guest permissions:", error);
+    return res.status(500).json({ error: "Could not save guest permissions." });
+  }
+  res.json({ ok: true, permissions: effectivePermissions(code) });
 });
 
 app.post("/admin/user-name", requireAdmin, (req, res) => {
