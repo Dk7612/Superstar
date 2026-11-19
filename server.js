@@ -894,7 +894,7 @@ app.post("/api/ai/chat", requireFeaturePermission("ai"), async (req, res) => {
   }
 });
 
-app.post("/api/ai/answer", async (req, res) => {
+app.post("/api/ai/answer", requireFeaturePermission("ai"), async (req, res) => {
   res.set("Cache-Control", "no-store");
   if (!geminiApiKey) {
     return res.status(503).json({ error: "AI is not configured yet. Add GEMINI_API_KEY to the Render environment." });
