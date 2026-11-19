@@ -148,3 +148,14 @@ The following captures the known requests and decisions from the project history
 - A currently unpacked Developer Mode installation is not automatically migrated by adding `update_url`; users must perform a one-time install of the signed package. Whether Opera GX on a particular Windows installation accepts externally hosted CRX auto-updates depends on its Chromium/Opera distribution policy. Verify the actual Opera installation path before promising unattended updates; a store install or managed-install policy may be required by the browser.
 - The extension's broad `<all_urls>` access remains intentional for the global overlay. The updater does not add page-reading or answer-clicking behavior.
 - Verification: parse the manifest, validate the workflow YAML, run the CRX build with a disposable test key in CI/local testing, inspect the generated XML for the exact version and stable CRX URL, and verify the CRX is signed with the persistent public key. Do not test with or replace the production signing key.
+
+
+## Public feature suggestions and private admin idea inbox
+
+- The main dashboard footer links to the public \`/ideas\` submission page. Visitors submit a title and description; the page does not expose stored submissions.
+- \`POST /api/ideas\` validates lengths, limits each IP to five submissions per hour, and asks Gemini 2.5 Flash for a short title, concise actionable summary, and fixed category.
+- The original title and description are retained beside the AI summary. Gemini output is schema-constrained and validated before storage.
+- Ideas are atomically saved to \`DATA_DIR/ideas.json\` (default local \`data/\`). On Render, \`DATA_DIR\` must point to a mounted persistent disk path or submissions may be lost on restart/redeploy. Submissions are not committed to Git.
+- \`GET /admin/ideas\` is protected by \`requireAdmin\`; the inbox appears only in the authenticated admin dashboard. It displays summaries, category, date, and original text, using \`textContent\` to avoid HTML injection.
+- Admins can copy the summary and original submission to bring selected ideas into a ChatGPT conversation. There is no public read endpoint.
+- Verification: syntax-check \`server.js\`; validate the ideas page script; test valid/invalid/oversized submissions, Gemini failures, rate limits, public 403 access to \`/admin/ideas\`, admin access, and persistence across restarts on the configured Render disk.
