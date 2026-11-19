@@ -160,8 +160,10 @@
       waiting = true; send.disabled = true; status.textContent = "Thinking…";
       const pending = element("div","bubble assistant","Thinking…"); messages.appendChild(pending); messages.scrollTop = messages.scrollHeight;
       try {
+        const stored = await new Promise(resolve => chrome.storage.local.get(["superstarSessionToken"], resolve));
+        const sessionToken = stored.superstarSessionToken || "";
         const response = await fetch("https://superstar-oa7t.onrender.com/api/ai/chat", {
-          method:"POST", headers:{"Content-Type":"application/json"},
+          method:"POST", headers:{"Content-Type":"application/json", "Authorization":"Bearer " + sessionToken},
           body:JSON.stringify({messages:history.slice(-12)}), signal:AbortSignal.timeout(35000)
         });
         const data = await response.json().catch(()=>({}));
