@@ -19,6 +19,7 @@ async function openMiniWindow() {
   if (permissions.extension !== true) return;
   const mode = await getMode();
   if (mode === "ai-helper" && permissions.ai !== true) return;
+  if (mode === "full-site" && permissions.dashboard !== true) return;
   const url = mode === "full-site"
     ? SITE_URL
     : chrome.runtime.getURL("helper.html");
