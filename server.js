@@ -11,7 +11,29 @@ app.use(cors());
 app.use(express.json({ limit: "3mb" }));
 app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "index.html")));
 app.get("/games", (_req, res) => res.sendFile(path.join(__dirname, "games.html")));
-app.get("/radar", (_req, res) => res.sendFile(path.join(__dirname, "radar.html")));
+const RADAR_ADMIN_COOKIE = "superstar_radar_admin";
+const RADAR_ADMIN_COOKIE_MAX_AGE = 8 * 60 * 60 * 1000;
+function requireRadarAdmin(req, res, next) {
+  const token = readCookie(req, RADAR_ADMIN_COOKIE);
+  req.headers.authorization = token ? "Bearer " + token : "";
+  return requireAdmin(req, res, next);
+}
+app.post("/radar/access", requireAdmin, (req, res) => {
+  const token = req.get("authorization").replace(/^Bearer\\s+/i, "");
+  res.cookie(RADAR_ADMIN_COOKIE, token, {
+    httpOnly: true,
+    secure: req.secure,
+    sameSite: "strict",
+    path: "/radar",
+    maxAge: RADAR_ADMIN_COOKIE_MAX_AGE
+  });
+  res.set("Cache-Control", "no-store");
+  res.json({ ok: true, url: "/radar" });
+});
+app.get("/radar", requireRadarAdmin, (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.sendFile(path.join(__dirname, "radar.html"));
+});
 app.get("/ai", (_req, res) => res.sendFile(path.join(__dirname, "ai.html")));
 app.get("/starfield.js", (_req, res) => res.sendFile(path.join(__dirname, "starfield.js")));
 app.get("/dropper.js", (_req, res) => res.sendFile(path.join(__dirname, "dropper.js")));
