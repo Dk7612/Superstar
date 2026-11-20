@@ -387,9 +387,18 @@ The following captures the known requests and decisions from the project history
 ## Arduino ultrasonic radar mapper
 
 - `radar.html` is a self-contained HTML/CSS/JavaScript radar page served at `/radar` by the Express route in `server.js`. It uses the browser Web Serial API at 9600 baud; no extra package, backend endpoint, or external framework is required.
-- The dashboard navigation includes a Radar link. Web Serial requires a supported Chromium browser (Chrome or Edge) and a secure context (HTTPS or localhost). The user must click Connect Arduino and select the serial port; close Arduino IDE Serial Monitor or any other app using that port first.
+- Radar is a private admin-only workspace. The dashboard hides its Radar tab for guests and only reveals it for a verified admin session. Clicking it exchanges the admin bearer session for a short-lived, HttpOnly, SameSite=Strict cookie scoped to `/radar`; the Express `GET /radar` route independently validates that cookie against the live admin session. Direct URL visits without a valid admin cookie return 403. The page response is marked `Cache-Control: no-store`. Never replace this server-side protection with navigation hiding alone. Web Serial requires a supported Chromium browser (Chrome or Edge) and a secure context (HTTPS or localhost). The user must click Connect Arduino and select the serial port; close Arduino IDE Serial Monitor or any other app using that port first.
 - Hardware sketch: `hardware/arduino-radar.ino`. Pinout: SG90 signal D13; HC-SR04 TRIG D9 and ECHO D8; 16x2 LCD RS D12, E D11, D4 D5, D5 D4, D6 D3, D7 D2. The sketch sweeps 45°–135° in one-degree increments, measures distance in centimeters, and sends one `angle,distance` CSV line per measurement at 9600 baud. Invalid readings are `-1`.
 - Change `STEP_DELAY_MS` in the sketch to tune sweep speed. The LCD updates fixed-width fields in place and does not call `lcd.clear()` in the scan loop.
 - The browser ignores malformed serial lines, shows the real reported servo angle, draws a 60-FPS canvas radar, and stores valid detections up to 200 cm as Cartesian map points. Pause Mapping pauses new map points but leaves serial display/radar live. Point Decay is opt-in; when enabled, points fade and are removed after 12 seconds. Clear Map resets stored points and scan extrema. Export Scan downloads the stored points as JSON.
 - Room-map pan/zoom is local to the page. Scan data stays in browser memory and is not uploaded. The browser's Web Serial port permission is user-granted.
 - Verification checklist: syntax-check the inline radar script; validate the Arduino sketch with Arduino IDE/arduino-cli and the selected libraries/board; test real sensor wiring, servo sweep, LCD update, serial parsing, connect/disconnect, pause, clear, decay, export, pan/zoom, and 45°/135° sweep endpoints. Hardware and real browser tests are not implied by source-level validation.
+
+
+## Radar access control
+
+- The Radar tab is rendered only for the verified admin role. It is not available to guest accounts.
+- The browser calls `POST /radar/access` with the current admin bearer session. Server middleware validates the token via `requireAdmin`, then issues an 8-hour HttpOnly, SameSite=Strict cookie scoped only to `/radar`.
+- `GET /radar` requires that cookie and reuses `requireAdmin` validation, including expiry, current admin role, and banned-session checks. No cookie or invalid/expired session returns 403. This prevents guests from bypassing a hidden tab by typing the URL.
+- The cookie is Secure when the request is HTTPS and is not readable by page JavaScript. The route sends `Cache-Control: no-store`.
+- Verify both UI and server behavior: admin sees the tab and can open the page; guest does not see the tab; a guest or logged-out direct GET to `/radar` receives 403; an expired/revoked admin session also receives 403.
