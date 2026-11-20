@@ -402,3 +402,10 @@ The following captures the known requests and decisions from the project history
 - `GET /radar` requires that cookie and reuses `requireAdmin` validation, including expiry, current admin role, and banned-session checks. No cookie or invalid/expired session returns 403. This prevents guests from bypassing a hidden tab by typing the URL.
 - The cookie is Secure when the request is HTTPS and is not readable by page JavaScript. The route sends `Cache-Control: no-store`.
 - Verify both UI and server behavior: admin sees the tab and can open the page; guest does not see the tab; a guest or logged-out direct GET to `/radar` receives 403; an expired/revoked admin session also receives 403.
+
+
+## Minimal logged-out login page
+
+- The signed-out view is intentionally plain: white background, centered access-code field, and a simple Login button.
+- Hides dashboard feature cards, marketing/navigation, idea-submission footer, starfield, welcome/workspace panels, and the login-card activity notice while signed out. No ad placements or third-party ad scripts were present in the login page source; this also removes the extra promotional content from that view.
+- Authenticated dashboard and admin UI remain unchanged by the logged-out-only CSS selectors.
