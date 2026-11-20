@@ -409,3 +409,10 @@ The following captures the known requests and decisions from the project history
 - The signed-out view is intentionally plain: white background, centered access-code field, and a simple Login button.
 - Hides dashboard feature cards, marketing/navigation, idea-submission footer, starfield, welcome/workspace panels, and the login-card activity notice while signed out. No ad placements or third-party ad scripts were present in the login page source; this also removes the extra promotional content from that view.
 - Authenticated dashboard and admin UI remain unchanged by the logged-out-only CSS selectors.
+
+## Gemini model access update
+
+- All Gemini generation endpoints use `gemini-3.8-flash` through the Gemini Developer API, including website conversational AI and quiz-answer suggestions. The previous `gemini-2.5-flash` model has restricted access for projects without prior active usage; new projects should use a current Gemini 3 model.
+- The Gemini API key remains server-side in the Render `GEMINI_API_KEY` environment variable. Never put it in frontend files, logs, or commits.
+- When diagnosing provider errors, inspect Render logs for `Gemini chat API returned` or `Gemini API returned`; the server logs the HTTP status and a short provider error body, but does not log the API key.
+- Verification: confirm no `gemini-2.5-flash` generation endpoint remains; run `node --check server.js`; after deployment, test website chat and quiz-answer suggestions with a signed-in account.
