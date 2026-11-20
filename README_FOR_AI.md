@@ -382,3 +382,14 @@ The following captures the known requests and decisions from the project history
 - Extension manifest version is 1.3.0 so the signed Opera release workflow can publish a new CRX/update feed rather than reusing the v1.2.9 release tag.
 - Chrome ZIP users still need to replace/reload their unpacked or Developer Mode installation manually unless Superstar is published through the Chrome Web Store. Opera signed CRX users can receive updates through the existing update feed.
 - Validation: parse the manifest JSON and syntax-check changed extension scripts before publishing; browser and live-site regression checks remain necessary.
+
+
+## Arduino ultrasonic radar mapper
+
+- `radar.html` is a self-contained HTML/CSS/JavaScript radar page served at `/radar` by the Express route in `server.js`. It uses the browser Web Serial API at 9600 baud; no extra package, backend endpoint, or external framework is required.
+- The dashboard navigation includes a Radar link. Web Serial requires a supported Chromium browser (Chrome or Edge) and a secure context (HTTPS or localhost). The user must click Connect Arduino and select the serial port; close Arduino IDE Serial Monitor or any other app using that port first.
+- Hardware sketch: `hardware/arduino-radar.ino`. Pinout: SG90 signal D13; HC-SR04 TRIG D9 and ECHO D8; 16x2 LCD RS D12, E D11, D4 D5, D5 D4, D6 D3, D7 D2. The sketch sweeps 45°–135° in one-degree increments, measures distance in centimeters, and sends one `angle,distance` CSV line per measurement at 9600 baud. Invalid readings are `-1`.
+- Change `STEP_DELAY_MS` in the sketch to tune sweep speed. The LCD updates fixed-width fields in place and does not call `lcd.clear()` in the scan loop.
+- The browser ignores malformed serial lines, shows the real reported servo angle, draws a 60-FPS canvas radar, and stores valid detections up to 200 cm as Cartesian map points. Pause Mapping pauses new map points but leaves serial display/radar live. Point Decay is opt-in; when enabled, points fade and are removed after 12 seconds. Clear Map resets stored points and scan extrema. Export Scan downloads the stored points as JSON.
+- Room-map pan/zoom is local to the page. Scan data stays in browser memory and is not uploaded. The browser's Web Serial port permission is user-granted.
+- Verification checklist: syntax-check the inline radar script; validate the Arduino sketch with Arduino IDE/arduino-cli and the selected libraries/board; test real sensor wiring, servo sweep, LCD update, serial parsing, connect/disconnect, pause, clear, decay, export, pan/zoom, and 45°/135° sweep endpoints. Hardware and real browser tests are not implied by source-level validation.
