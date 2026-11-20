@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#07130d">
+<title>Superstar Radar Mapper</title>
+<style>
+:root{color-scheme:dark;--bg:#050b08;--panel:#0b1710;--line:#1b3a27;--green:#55ff91;--muted:#91ad9a;--red:#ff5353;--yellow:#ffe45c}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -20%,#153321 0,#07100b 55%,#030705 100%);color:#e5f7e9;font:14px/1.45 system-ui,Segoe UI,Arial,sans-serif;min-height:100vh}
+header{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:18px clamp(16px,3vw,34px);border-bottom:1px solid #244330;background:#07110bdc;position:sticky;top:0;z-index:5;backdrop-filter:blur(12px)}
+.brand{color:#e9fff0;text-decoration:none;font-weight:800;letter-spacing:.08em}.brand span{color:var(--green)}.header-status{color:var(--muted);font-size:12px}
+main{max-width:1600px;margin:auto;padding:22px clamp(12px,2.5vw,30px) 36px}.intro{display:flex;align-items:end;justify-content:space-between;gap:20px;margin-bottom:18px}.eyebrow{color:var(--green);letter-spacing:.2em;font-size:10px;font-weight:800}.intro h1{font-size:clamp(25px,4vw,38px);margin:4px 0}.intro p{margin:0;color:var(--muted)}
+.toolbar,.panel,.stats{background:linear-gradient(145deg,#0d1b12,#08110c);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 35px #0005}
+.toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:9px;padding:12px;margin-bottom:14px}
+button{border:1px solid #315d3e;background:#12281a;color:#eaffef;border-radius:8px;padding:9px 13px;font-weight:650;cursor:pointer;transition:background .15s,border-color .15s}button:hover:not(:disabled){background:#1a3a25;border-color:#5aff91}button:disabled{opacity:.42;cursor:not-allowed}.primary{background:#1d6035;border-color:#4bdb78}.danger{border-color:#784141;background:#301616}.toggle{display:inline-flex;align-items:center;gap:7px;color:#c3d9c9;padding:5px 8px}.toggle input{accent-color:#55ff91;width:16px;height:16px}.toolbar .spacer{flex:1}.hint{color:var(--muted);font-size:12px}
+.status-pill{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border:1px solid #31533b;border-radius:999px;color:#b9d9c2;font-size:12px}.led{width:7px;height:7px;border-radius:50%;background:#e2ad4c;box-shadow:0 0 9px currentColor}.led.on{background:#55ff91}
+.views{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}.panel{min-width:0;padding:14px}.panel-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}.panel h2{font-size:15px;letter-spacing:.08em;margin:0}.panel-head small{color:var(--muted)}.canvas-wrap{position:relative;background:#020704;border:1px solid #1a3b27;border-radius:10px;overflow:hidden;min-height:300px;aspect-ratio:1.35}.canvas-wrap.map-wrap{aspect-ratio:1.35}.canvas-wrap canvas{display:block;width:100%;height:100%;touch-action:none}
+.canvas-legend{display:flex;flex-wrap:wrap;gap:14px;color:#adc2b2;font-size:11px;padding:10px 2px 0}.legend-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
+.map-tools{display:flex;gap:6px}.map-tools button{padding:5px 9px;font-size:12px}
+.stats{display:grid;grid-template-columns:repeat(7,minmax(100px,1fr));gap:1px;overflow:hidden;margin-top:14px;background:#25422e}.stat{background:#0b1710;padding:13px 14px;min-width:0}.stat label{display:block;color:#8da995;font-size:10px;text-transform:uppercase;letter-spacing:.09em}.stat strong{display:block;font-size:19px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.footer-note{color:#829888;font-size:11px;margin:14px 2px}.error{color:#ff8c8c}.green{color:var(--green)}.yellow{color:var(--yellow)}.red{color:var(--red)}
+@media(max-width:900px){.views{grid-template-columns:1fr}.stats{grid-template-columns:repeat(4,minmax(0,1fr))}.canvas-wrap{aspect-ratio:1.45}}
+@media(max-width:520px){header{padding:13px}.intro{display:block}.intro p{margin-top:5px}.toolbar button{flex:1 1 auto}.toolbar .spacer{display:none}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.stat strong{font-size:17px}.panel{padding:10px}.canvas-wrap{min-height:250px}}
+</style>
+</head>
+<body>
+<header><a class="brand" href="/">SUPER<span>STAR</span> / RADAR</a><div class="header-status">LOCAL DEVICE LINK · WEB SERIAL</div></header>
+<main>
+  <section class="intro"><div><div class="eyebrow">SENSOR LAB / 01</div><h1>Radar Mapping System</h1><p>Live ultrasonic sweep and persistent 2D room mapping.</p></div><div class="status-pill"><i class="led" id="connectionLed"></i><span id="connectionText">Disconnected</span></div></section>
+  <section class="toolbar" aria-label="Radar controls">
+    <button class="primary" id="connectBtn">Connect Arduino</button>
+    <button id="disconnectBtn" disabled>Disconnect</button>
+    <button id="pauseBtn" disabled>Pause Mapping</button>
+    <button class="danger" id="clearBtn">Clear Map</button>
+    <label class="toggle"><input type="checkbox" id="decayToggle"> Point decay</label>
+    <span class="spacer"></span><span class="hint" id="serialHint">Chrome / Edge · HTTPS or localhost required</span>
+    <button id="exportBtn">Export Scan</button>
+  </section>
+  <section class="views">
+    <article class="panel"><div class="panel-head"><h2>01 / LIVE RADAR</h2><small>0–200 cm · 60 FPS</small></div><div class="canvas-wrap"><canvas id="radarCanvas" aria-label="Live semicircular radar display"></canvas></div><div class="canvas-legend"><span><i class="legend-dot" style="background:#55ff91"></i>Live detections</span><span><i class="legend-dot" style="background:#49f98a"></i>Sweep beam</span></div></article>
+    <article class="panel"><div class="panel-head"><h2>02 / ROOM MAP</h2><div class="map-tools"><button id="zoomOut" aria-label="Zoom out">−</button><button id="zoomIn" aria-label="Zoom in">+</button><button id="resetView">Reset view</button></div></div><div class="canvas-wrap map-wrap" id="mapWrap"><canvas id="mapCanvas" aria-label="Persistent top-down room map; drag to pan and use mouse wheel to zoom"></canvas></div><div class="canvas-legend"><span><i class="legend-dot" style="background:#ff5353"></i>0–50 cm</span><span><i class="legend-dot" style="background:#ffe45c"></i>50–100 cm</span><span><i class="legend-dot" style="background:#55ff91"></i>100–200 cm</span><span>Drag to pan · wheel to zoom</span></div></article>
+  </section>
+  <section class="stats" aria-live="polite">
+    <div class="stat"><label>Current angle</label><strong id="statAngle">—</strong></div>
+    <div class="stat"><label>Current distance</label><strong id="statDistance">—</strong></div>
+    <div class="stat"><label>Maximum seen</label><strong id="statMaximum">—</strong></div>
+    <div class="stat"><label>Closest object</label><strong id="statClosest">—</strong></div>
+    <div class="stat"><label>Points stored</label><strong id="statPoints">0</strong></div>
+    <div class="stat"><label>Connection</label><strong id="statConnection">Offline</strong></div>
+    <div class="stat"><label>FPS</label><strong id="statFps">0</strong></div>
+  </section>
+  <p class="footer-note">Serial format: angle,distance · Invalid sensor readings use -1. Mapping is processed locally in this browser; no scan data is uploaded.</p>
+</main>
+<script>
+(() => {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const radarCanvas = $("radarCanvas"), mapCanvas = $("mapCanvas");
+  const radarCtx = radarCanvas.getContext("2d"), mapCtx = mapCanvas.getContext("2d");
+  const MAX_RANGE = 200, MIN_ANGLE = 45, MAX_ANGLE = 135;
+  const points = [];
+  let port = null, reader = null, keepReading = false, mappingPaused = false;
+  let currentAngle = 90, currentDistance = -1, maxDistance = 0, closestDistance = Infinity;
+  let lastFrameTime = performance.now(), fps = 0, fpsFrames = 0, fpsStart = lastFrameTime;
+  let sweepHistory = [], mapZoom = 1, mapPanX = 0, mapPanY = 0, dragging = false, dragStart = null;
+  let lastPointAt = 0, lineBuffer = "";
+  const DECAY_MS = 12000;
+  const COLORS = { close: "#ff5353", medium: "#ffe45c", far: "#55ff91" };
+
+  function setConnection(connected, message) {
+    $("connectionText").textContent = message;
+    $("statConnection").textContent = connected ? "Online" : "Offline";
+    $("connectionLed").classList.toggle("on", connected);
+    $("connectBtn").disabled = connected || !("serial" in navigator);
+    $("disconnectBtn").disabled = !connected;
+    $("pauseBtn").disabled = !connected;
+  }
+  function resizeCanvas(canvas, ctx) {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const width = Math.max(1, Math.round(rect.width * dpr)), height = Math.max(1, Math.round(rect.height * dpr));
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width; canvas.height = height;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+  }
+  function resizeAll() { resizeCanvas(radarCanvas, radarCtx); resizeCanvas(mapCanvas, mapCtx); }
+  function colorFor(distance) { return distance <= 50 ? COLORS.close : distance <= 100 ? COLORS.medium : COLORS.far; }
+  function parseLine(line) {
+    const match = /^\s*(\d{1,3})\s*,\s*(-?\d+(?:\.\d+)?)\s*$/.exec(line);
+    if (!match) return null;
+    const angle = Number(match[1]), distance = Number(match[2]);
+    if (!Number.isInteger(angle) || angle < 0 || angle > 180 || !Number.isFinite(distance)) return null;
+    if (distance !== -1 && (distance <= 0 || distance > 400)) return null;
+    return { angle, distance };
+  }
+  function receiveReading(reading) {
+    currentAngle = reading.angle; currentDistance = reading.distance;
+    $("statAngle").textContent = reading.angle + "°";
+    $("statDistance").textContent = reading.distance < 0 ? "Invalid" : reading.distance.toFixed(0) + " cm";
+    if (reading.distance > 0 && reading.distance <= 400) {
+      maxDistance = Math.max(maxDistance, reading.distance);
+      closestDistance = Math.min(closestDistance, reading.distance);
+      $("statMaximum").textContent = maxDistance.toFixed(0) + " cm";
+      $("statClosest").textContent = closestDistance.toFixed(0) + " cm";
+      if (reading.distance <= MAX_RANGE) {
+        sweepHistory.push({ angle: reading.angle, distance: reading.distance, time: performance.now() });
+        if (sweepHistory.length > 220) sweepHistory.shift();
+        if (!mappingPaused) {
+          const radians = reading.angle * Math.PI / 180;
+          points.push({ angle: reading.angle, distance: reading.distance, x: reading.distance * Math.cos(radians), y: reading.distance * Math.sin(radians), timestamp: Date.now() });
+          lastPointAt = Date.now();
+          $("statPoints").textContent = points.length.toLocaleString();
+        }
+      }
+    }
+  }
+  async function connect() {
+    if (!("serial" in navigator)) {
+      $("serialHint").textContent = "Web Serial is unavailable. Use current Chrome or Edge over HTTPS.";
+      return;
+    }
+    try {
+      port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 9600 });
+      keepReading = true; lineBuffer = "";
+      setConnection(true, "Connected · 9600 baud");
+      $("serialHint").textContent = "Arduino connected. Waiting for scan lines…";
+      readLoop();
+    } catch (error) {
+      if (error.name !== "NotFoundError") $("serialHint").textContent = "Connection failed: " + error.message;
+      await disconnect();
+    }
+  }
+  async function readLoop() {
+    const decoder = new TextDecoder();
+    try {
+      while (port && port.readable && keepReading) {
+        reader = port.readable.getReader();
+        try {
+          while (keepReading) {
+            const result = await reader.read();
+            if (result.done) break;
+            lineBuffer += decoder.decode(result.value, { stream: true });
+            if (lineBuffer.length > 8192) lineBuffer = lineBuffer.slice(-2048);
+            let newline;
+            while ((newline = lineBuffer.indexOf("\n")) !== -1) {
+              const line = lineBuffer.slice(0, newline).replace(/\r$/, "");
+              lineBuffer = lineBuffer.slice(newline + 1);
+              const reading = parseLine(line);
+              if (reading) receiveReading(reading);
+            }
+          }
+        } finally {
+          reader.releaseLock(); reader = null;
+        }
+      }
+    } catch (error) {
+      if (keepReading) $("serialHint").textContent = "Serial read error: " + error.message;
+    } finally {
+      if (keepReading) await disconnect();
+    }
+  }
+  async function disconnect() {
+    keepReading = false;
+    if (reader) { try { await reader.cancel(); } catch (_) {} }
+    if (port) { try { await port.close(); } catch (_) {} }
+    port = null; reader = null;
+    setConnection(false, "Disconnected");
+  }
+  function clearMap() {
+    points.length = 0; sweepHistory = []; maxDistance = 0; closestDistance = Infinity;
+    $("statPoints").textContent = "0"; $("statMaximum").textContent = "—"; $("statClosest").textContent = "—";
+  }
+  function updateDecay() {
+    if (!$("decayToggle").checked) return;
+    const cutoff = Date.now() - DECAY_MS;
+    while (points.length && points[0].timestamp < cutoff) points.shift();
+    $("statPoints").textContent = points.length.toLocaleString();
+  }
+  function drawRadar(now) {
+    const ctx = radarCtx, w = radarCanvas.clientWidth, h = radarCanvas.clientHeight;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = "#020704"; ctx.fillRect(0, 0, w, h);
+    const cx = w / 2, cy = h * .88, radius = Math.min(w * .46, h * .82);
+    ctx.strokeStyle = "rgba(72,255,132,.32)"; ctx.lineWidth = 1;
+    for (let ring = 1; ring <= 4; ring++) {
+      ctx.beginPath(); ctx.arc(cx, cy, radius * ring / 4, Math.PI, 2 * Math.PI); ctx.stroke();
+    }
+    for (let angle = 0; angle <= 180; angle += 30) {
+      const rad = angle * Math.PI / 180;
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(rad) * radius, cy - Math.sin(rad) * radius); ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(85,255,145,.65)"; ctx.font = "10px monospace";
+    for (let ring = 1; ring <= 4; ring++) ctx.fillText((ring * 50) + "cm", cx + 5, cy - radius * ring / 4 - 3);
+    // Short-lived echo trail; each echo is positioned from the actual reported servo angle.
+    for (const echo of sweepHistory) {
+      const age = now - echo.time, alpha = Math.max(0, 1 - age / 1800);
+      const r = echo.distance / MAX_RANGE * radius;
+      const rad = echo.angle * Math.PI / 180;
+      ctx.globalAlpha = alpha; ctx.fillStyle = "#55ff91";
+      ctx.beginPath(); ctx.arc(cx + Math.cos(rad) * r, cy - Math.sin(rad) * r, 3, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    const beam = currentAngle * Math.PI / 180;
+    const bx = cx + Math.cos(beam) * radius, by = cy - Math.sin(beam) * radius;
+    const gradient = ctx.createLinearGradient(cx, cy, bx, by);
+    gradient.addColorStop(0, "rgba(80,255,140,.55)"); gradient.addColorStop(1, "rgba(80,255,140,.02)");
+    ctx.fillStyle = gradient; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(bx, by);
+    ctx.arc(cx, cy, radius, -beam, 0); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = "#65ff9a"; ctx.lineWidth = 2; ctx.shadowColor = "#55ff91"; ctx.shadowBlur = 12;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(bx, by); ctx.stroke(); ctx.shadowBlur = 0;
+    ctx.fillStyle = "#8bffb1"; ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
+    if (currentDistance > 0 && currentDistance <= MAX_RANGE) {
+      const r = currentDistance / MAX_RANGE * radius;
+      ctx.fillStyle = "#55ff91"; ctx.shadowColor = "#55ff91"; ctx.shadowBlur = 12;
+      ctx.beginPath(); ctx.arc(cx + Math.cos(beam) * r, cy - Math.sin(beam) * r, 5, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+    }
+  }
+  function drawMap() {
+    const ctx = mapCtx, w = mapCanvas.clientWidth, h = mapCanvas.clientHeight;
+    ctx.clearRect(0, 0, w, h); ctx.fillStyle = "#020704"; ctx.fillRect(0, 0, w, h);
+    const scale = Math.min(w, h) / (MAX_RANGE * 2.35) * mapZoom;
+    const cx = w / 2 + mapPanX, cy = h / 2 + mapPanY;
+    ctx.strokeStyle = "rgba(72,255,132,.17)"; ctx.lineWidth = 1;
+    for (let cm = 50; cm <= 200; cm += 50) {
+      ctx.beginPath(); ctx.arc(cx, cy, cm * scale, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = "rgba(85,255,145,.55)"; ctx.font = "10px monospace"; ctx.fillText(cm + " cm", cx + 5, cy - cm * scale + 12);
+    }
+    ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(w, cy); ctx.moveTo(cx, 0); ctx.lineTo(cx, h); ctx.stroke();
+    // Sensor origin and forward-facing sweep sector.
+    ctx.fillStyle = "#d7ffe3"; ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
+    const now = Date.now();
+    for (const point of points) {
+      const age = now - point.timestamp;
+      const alpha = $("decayToggle").checked ? Math.max(.08, 1 - age / DECAY_MS) : .95;
+      const x = cx + point.x * scale, y = cy - point.y * scale;
+      if (x < -5 || x > w + 5 || y < -5 || y > h + 5) continue;
+      ctx.globalAlpha = alpha; ctx.fillStyle = colorFor(point.distance);
+      ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  function frame(now) {
+    resizeAll();
+    fpsFrames++;
+    if (now - fpsStart >= 1000) { fps = Math.round(fpsFrames * 1000 / (now - fpsStart)); fpsFrames = 0; fpsStart = now; $("statFps").textContent = fps; }
+    updateDecay(); drawRadar(now); drawMap();
+    lastFrameTime = now;
+    requestAnimationFrame(frame);
+  }
+  function zoomAt(factor, px, py) {
+    const rect = mapCanvas.getBoundingClientRect(), x = px - rect.left, y = py - rect.top;
+    const oldZoom = mapZoom, nextZoom = Math.max(.35, Math.min(5, mapZoom * factor));
+    const cx = mapCanvas.clientWidth / 2 + mapPanX, cy = mapCanvas.clientHeight / 2 + mapPanY;
+    mapPanX = x - (x - cx) * nextZoom / oldZoom - mapCanvas.clientWidth / 2;
+    mapPanY = y - (y - cy) * nextZoom / oldZoom - mapCanvas.clientHeight / 2;
+    mapZoom = nextZoom;
+  }
+  $("connectBtn").addEventListener("click", connect);
+  $("disconnectBtn").addEventListener("click", disconnect);
+  $("clearBtn").addEventListener("click", clearMap);
+  $("pauseBtn").addEventListener("click", () => { mappingPaused = !mappingPaused; $("pauseBtn").textContent = mappingPaused ? "Resume Mapping" : "Pause Mapping"; });
+  $("exportBtn").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(points, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob), link = document.createElement("a");
+    link.href = url; link.download = "superstar-radar-scan-" + new Date().toISOString().replace(/[:.]/g, "-") + ".json";
+    document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+  $("zoomIn").addEventListener("click", () => { mapZoom = Math.min(5, mapZoom * 1.2); });
+  $("zoomOut").addEventListener("click", () => { mapZoom = Math.max(.35, mapZoom / 1.2); });
+  $("resetView").addEventListener("click", () => { mapZoom = 1; mapPanX = 0; mapPanY = 0; });
+  mapCanvas.addEventListener("pointerdown", event => { dragging = true; dragStart = { x: event.clientX, y: event.clientY, panX: mapPanX, panY: mapPanY }; mapCanvas.setPointerCapture(event.pointerId); });
+  mapCanvas.addEventListener("pointermove", event => { if (!dragging || !dragStart) return; mapPanX = dragStart.panX + event.clientX - dragStart.x; mapPanY = dragStart.panY + event.clientY - dragStart.y; });
+  mapCanvas.addEventListener("pointerup", () => { dragging = false; dragStart = null; });
+  mapCanvas.addEventListener("pointercancel", () => { dragging = false; dragStart = null; });
+  mapCanvas.addEventListener("wheel", event => { event.preventDefault(); zoomAt(event.deltaY < 0 ? 1.12 : 1 / 1.12, event.clientX, event.clientY); }, { passive: false });
+  if (!("serial" in navigator)) {
+    $("serialHint").textContent = "Web Serial requires Chrome or Edge on HTTPS (or localhost).";
+    $("connectBtn").disabled = true;
+  }
+  if (navigator.serial?.addEventListener) navigator.serial.addEventListener("disconnect", () => { if (port) disconnect(); });
+  window.addEventListener("resize", resizeAll);
+  setConnection(false, "Disconnected");
+  resizeAll();
+  requestAnimationFrame(frame);
+  window.addEventListener("beforeunload", () => { if (reader) reader.cancel().catch(() => {}); });
+})();
+</script>
+</body>
+</html>
