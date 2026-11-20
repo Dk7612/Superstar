@@ -94,7 +94,7 @@
 <body class="logged-out">
 
 <canvas class="starfield" aria-hidden="true"></canvas>
-<nav class="container top-nav"><a class="brand" href="/" aria-label="Superstar home"><img src="/favicon.png?v=2" alt=""><span>Superstar</span></a><div class="nav-actions" role="navigation" aria-label="Main navigation"><button class="nav-tab active" type="button" data-page="dashboard">Home</button><a class="nav-tab-link" href="/ai">AI</a><a class="nav-tab-link" href="/games">Games</a><a class="nav-tab-link" href="/radar">Radar</a><button class="nav-tab" id="settingsNav" type="button" data-page="settings" aria-label="Settings"><span aria-hidden="true">⚙</span><span class="nav-tab-label">Settings</span></button><button class="nav-tab admin-nav" id="adminNav" type="button" data-page="admin" hidden>Admin</button></div></nav>
+<nav class="container top-nav"><a class="brand" href="/" aria-label="Superstar home"><img src="/favicon.png?v=2" alt=""><span>Superstar</span></a><div class="nav-actions" role="navigation" aria-label="Main navigation"><button class="nav-tab active" type="button" data-page="dashboard">Home</button><a class="nav-tab-link" href="/ai">AI</a><a class="nav-tab-link" href="/games">Games</a><button class="nav-tab-link" id="radarNav" type="button" hidden>Radar</button><button class="nav-tab" id="settingsNav" type="button" data-page="settings" aria-label="Settings"><span aria-hidden="true">⚙</span><span class="nav-tab-label">Settings</span></button><button class="nav-tab admin-nav" id="adminNav" type="button" data-page="admin" hidden>Admin</button></div></nav>
 
 <div id="permissionDeniedScreen" hidden style="position:fixed;inset:0;z-index:99999;background:#080f22;color:#f4f6ff;place-items:center;text-align:center;padding:24px"><div><h1>Access restricted</h1><p>This access code does not have permission to use the Superstar dashboard.</p></div></div>
 <main class="container app-shell"><section class="page-view active" id="dashboardPage" data-page-panel="dashboard"><div class="page-heading"><div><p class="eyebrow">YOUR SPACE</p><h1>Welcome to Superstar</h1><p class="notice">Everything you need, in one place.</p></div><a class="install-link" href="/install">Install extension ↗</a></div><div class="dashboard-grid"><article class="feature-card feature-primary" data-feature-permission="ai"><span class="feature-icon">✦</span><h2>Superstar AI</h2><p>Get help, explore ideas, and ask questions.</p><a href="/ai">Open AI assistant →</a></article><article class="feature-card" data-feature-permission="games"><span class="feature-icon">◈</span><h2>Games</h2><p>Take a break and explore the games library.</p><a href="/games">Explore games →</a></article><article class="feature-card"><span class="feature-icon">✧</span><h2>Browser extension</h2><p>Bring Superstar tools with you as you browse.</p><a href="/install">View installation →</a></article></div><div class="dashboard-lower">  <div class="card" id="loginCard">
@@ -426,12 +426,35 @@ function setupWorkspace(){const w=document.getElementById('workspace');if(w.data
 function setWorkspaceTab(name){if(name==='admin'&&role!=='admin')return;document.querySelectorAll('[data-workspace-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.workspaceTab===name)));['home','settings','admin'].forEach(t=>{const el=document.getElementById('workspace-'+t);if(el)el.hidden=t!==name;});document.getElementById('settingsTabButton').setAttribute('aria-pressed',String(name==='settings'));if(name==='admin')setAdminTab('codes');}
 function setAdminTab(name){if(role!=='admin')return;document.querySelectorAll('[data-admin-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.adminTab===name)));['codes','activity','security','ideas'].forEach(t=>document.getElementById('admin-subtab-'+t).hidden=t!==name);}
 function activatePage(page){if(page==="admin"&&role!=="admin")return;document.querySelectorAll("[data-page-panel]").forEach(p=>{const active=p.dataset.pagePanel===page;p.hidden=!active;p.classList.toggle("active",active)});document.querySelectorAll("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===page));if(page==="admin")startAdminLoginPolling();else if(adminLoginPoll){clearInterval(adminLoginPoll);adminLoginPoll=null}}document.querySelectorAll("[data-page]").forEach(b=>b.addEventListener("click",()=>activatePage(b.dataset.page)));document.querySelectorAll("[data-admin-section]").forEach(b=>b.addEventListener("click",()=>{const section=b.dataset.adminSection;document.querySelectorAll("[data-admin-section]").forEach(t=>t.classList.toggle("active",t===b));document.querySelectorAll("[data-admin-panel]").forEach(p=>{const active=p.dataset.adminPanel===section;p.hidden=!active;p.classList.toggle("active",active)});if(section==="activity")loadLogins(true)}));document.addEventListener("visibilitychange",()=>{if(document.visibilityState!=="visible"&&adminLoginPoll){clearInterval(adminLoginPoll);adminLoginPoll=null}else if(document.visibilityState==="visible"&&role==="admin"&&!document.getElementById("adminPage").hidden)startAdminLoginPolling()});
+document.getElementById("radarNav").addEventListener("click", async () => {
+  let session;
+  try { session = JSON.parse(sessionStorage.getItem("superstar-session") || "null"); } catch {}
+  if (role !== "admin" || !session || session.role !== "admin" || typeof session.sessionToken !== "string") return;
+  const button = document.getElementById("radarNav");
+  button.disabled = true;
+  try {
+    const response = await fetch("/radar/access", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + session.sessionToken },
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+    if (!response.ok) throw new Error("Admin verification failed. Please sign in again.");
+    window.location.assign("/radar");
+  } catch (error) {
+    alert(error.message || "Could not open the private Radar workspace.");
+  } finally {
+    button.disabled = false;
+  }
+});
+
 function showAuthenticatedDashboard(session, remembered = false) {
   role = session.role;
   setupWorkspace();
   startAccountSessionHeartbeat(session.sessionToken);
   adminToken = session.adminToken || "";
   document.getElementById("adminNav").hidden = role !== "admin";
+  document.getElementById("radarNav").hidden = role !== "admin";
   activatePage("dashboard");
   window.postMessage({ source: "superstar-site", type: "SET_SESSION", sessionToken: session.sessionToken }, window.location.origin);
   fetch("/account/permissions", { headers: { "Authorization": "Bearer " + session.sessionToken }, cache: "no-store" })
