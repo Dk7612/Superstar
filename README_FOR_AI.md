@@ -412,7 +412,7 @@ The following captures the known requests and decisions from the project history
 
 ## Gemini model access update
 
-- All Gemini generation endpoints use `gemini-3.5-flash-lite` through the Gemini Developer API, including website conversational AI and quiz-answer suggestions. Google recommends `gemini-3.5-flash-lite` or `gemini-3.8-flash` for new projects because access to Gemini 2.5 models is limited for projects without prior active usage. Superstar uses Flash-Lite to favor a lighter, lower-cost model.
+- All Gemini generation endpoints use `gemini-3.8-flash` through the Gemini Developer API, including website conversational AI and quiz-answer suggestions. The Render provider error explicitly identifies `gemini-3.8-flash` as the required replacement for `gemini-2.5-flash`; keep all generation endpoints aligned to that model.
 - The Gemini API key remains server-side in the Render `GEMINI_API_KEY` environment variable. Never put it in frontend files, logs, or commits.
 - When diagnosing provider errors, inspect Render logs for `Gemini chat API returned` or `Gemini API returned`; the server logs the HTTP status and a short provider error body, but does not log the API key.
 - Verification: confirm no `gemini-2.5-flash` generation endpoint remains; run `node --check server.js`; after deployment, test website chat and quiz-answer suggestions with a signed-in account.
