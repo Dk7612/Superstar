@@ -416,3 +416,11 @@ The following captures the known requests and decisions from the project history
 - The Gemini API key remains server-side in the Render `GEMINI_API_KEY` environment variable. Never put it in frontend files, logs, or commits.
 - When diagnosing provider errors, inspect Render logs for `Gemini chat API returned` or `Gemini API returned`; the server logs the HTTP status and a short provider error body, but does not log the API key.
 - Verification: confirm no `gemini-2.5-flash` generation endpoint remains; run `node --check server.js`; after deployment, test website chat and quiz-answer suggestions with a signed-in account.
+
+
+## AI chat stuck-response safeguards
+
+- The /ai HTML route sends no-store/no-cache headers so browsers do not keep an older chat client after deployments.
+- Website chat provider calls have a 20-second server-side timeout and return HTTP 504 with a clear timeout message. Provider failures are logged without exposing the API key.
+- The chat client has its own 25-second abort watchdog, prevents duplicate in-flight submissions, restores the Send button in every completion path, and places request errors in the conversation instead of leaving the user with only a permanent thinking indicator.
+- Verification: syntax-check server.js and the inline script in ai.html; test successful replies, provider 429/5xx, provider timeout, browser refresh, and New chat during an active request.

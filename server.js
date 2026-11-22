@@ -34,7 +34,10 @@ app.get("/radar", requireRadarAdmin, (_req, res) => {
   res.set("Cache-Control", "no-store");
   res.sendFile(path.join(__dirname, "radar.html"));
 });
-app.get("/ai", (_req, res) => res.sendFile(path.join(__dirname, "ai.html")));
+app.get("/ai", (_req, res) => {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.sendFile(path.join(__dirname, "ai.html"));
+});
 app.get("/starfield.js", (_req, res) => res.sendFile(path.join(__dirname, "starfield.js")));
 app.get("/dropper.js", (_req, res) => res.sendFile(path.join(__dirname, "dropper.js")));
 app.get("/physics3d.js", (_req, res) => res.sendFile(path.join(__dirname, "physics3d.js")));
@@ -983,7 +986,7 @@ app.post("/api/ai/chat", requireFeaturePermission("ai"), async (req, res) => {
         contents: messages.map(item => ({ role: item.role, parts: [{ text: item.text }] })),
         generationConfig: { temperature: 0.7, maxOutputTokens: 700 }
       }),
-      signal: AbortSignal.timeout(30_000)
+      signal: AbortSignal.timeout(20_000)
     });
     if (!response.ok) {
       const detail = await response.text();
@@ -997,7 +1000,10 @@ app.post("/api/ai/chat", requireFeaturePermission("ai"), async (req, res) => {
     res.json({ reply: reply.slice(0, 6000) });
   } catch (error) {
     console.error("AI chat request failed:", error.message);
-    res.status(502).json({ error: "Could not reach the AI provider. Try again in a moment." });
+    if (error.name === "TimeoutError" || error.name === "AbortError") {
+      return res.status(504).json({ error: "The AI provider took too long to respond. Please try again." });
+    }
+    if (!res.headersSent) return res.status(502).json({ error: "Could not reach the AI provider. Try again in a moment." });
   }
 });
 
