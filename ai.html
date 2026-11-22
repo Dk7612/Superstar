@@ -64,7 +64,7 @@
     (() => {
       "use strict";
       const messagesEl=document.getElementById("messages"), input=document.getElementById("prompt"), form=document.getElementById("chatForm"), send=document.getElementById("send"), status=document.getElementById("status"), clear=document.getElementById("clear");
-      let history=[], token="";
+      let history=[], token="", requestInFlight=false;
       function addMessage(role,content){const bubble=document.createElement("div");bubble.className="message "+role;bubble.textContent=content;messagesEl.appendChild(bubble);messagesEl.scrollTop=messagesEl.scrollHeight;return bubble;}
       function showError(message){status.textContent=message;}
       async function initialize(){
@@ -81,18 +81,28 @@
       form.addEventListener("submit",async event=>{
         event.preventDefault();const prompt=input.value.trim();if(!prompt||send.disabled)return;
         if(prompt.length>2500){showError("Please keep messages under 2,500 characters.");return;}
-        history.push({role:"user",content:prompt});addMessage("user",prompt);input.value="";send.disabled=true;status.textContent="Superstar AI is thinking…";
+        if(requestInFlight)return;
+        requestInFlight=true;
+        history.push({role:"user",content:prompt});addMessage("user",prompt);input.value="";send.disabled=true;send.textContent="Thinking…";status.textContent="Superstar AI is thinking…";
+        const controller=new AbortController();
+        const watchdog=setTimeout(()=>controller.abort(new DOMException("Request timed out","TimeoutError")),25000);
         try{
-          const response=await fetch("/api/ai/chat",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+token},body:JSON.stringify({messages:history.slice(-12)}),signal:AbortSignal.timeout(35000)});
+          const response=await fetch("/api/ai/chat",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+token},body:JSON.stringify({messages:history.slice(-12)}),signal:controller.signal,cache:"no-store"});
           const data=await response.json().catch(()=>({}));
-          if(!response.ok)throw new Error(data.error||"AI request failed.");
+          if(!response.ok)throw new Error(data.error||("AI request failed (HTTP "+response.status+")."));
           const reply=typeof data.reply==="string"&&data.reply.trim()?data.reply.trim():"The AI returned an empty response.";
           history.push({role:"assistant",content:reply});addMessage("assistant",reply);status.textContent="Ready.";
-        }catch(error){history.pop();showError(error.name==="TimeoutError"?"That took too long. Try again.":error.message||"Could not reach Superstar AI.");}
-        finally{send.disabled=false;input.focus();}
+        }catch(error){
+          history.pop();
+          const message=error.name==="TimeoutError"||error.name==="AbortError"?"The AI request timed out. Please try again.":error.message||"Could not reach Superstar AI.";
+          addMessage("assistant","Sorry — "+message);
+          showError(message);
+        }finally{
+          clearTimeout(watchdog);requestInFlight=false;send.disabled=false;send.textContent="Send";input.focus();
+        }
       });
       input.addEventListener("keydown",event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();form.requestSubmit();}});
-      clear.addEventListener("click",()=>{history=[];messagesEl.replaceChildren();const welcome=document.createElement("div");welcome.className="welcome";welcome.textContent="New conversation. What would you like help with?";messagesEl.appendChild(welcome);status.textContent="Ready for a new chat.";input.focus();});
+      clear.addEventListener("click",()=>{if(requestInFlight)return;history=[];messagesEl.replaceChildren();const welcome=document.createElement("div");welcome.className="welcome";welcome.textContent="New conversation. What would you like help with?";messagesEl.appendChild(welcome);status.textContent="Ready for a new chat.";input.focus();});
       initialize();
     })();
   </script>
